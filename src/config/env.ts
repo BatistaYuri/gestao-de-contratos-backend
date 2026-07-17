@@ -52,6 +52,18 @@ if (!contractSummaryCacheTtlSeconds) {
   throw new Error('Missing CONTRACT_SUMMARY_CACHE_TTL_SECONDS environment variable');
 }
 
+const rabbitMqUrl = process.env.RABBITMQ_URL;
+
+if (!rabbitMqUrl) {
+  throw new Error('Missing RABBITMQ_URL environment variable');
+}
+
+const contractExpirationIntervalMs = Number(process.env.CONTRACT_EXPIRATION_INTERVAL_MS);
+
+if (!contractExpirationIntervalMs) {
+  throw new Error('Missing CONTRACT_EXPIRATION_INTERVAL_MS environment variable');
+}
+
 export const env = {
   adminUsername,
   adminPassword,
@@ -62,4 +74,6 @@ export const env = {
   redisHost,
   redisPort,
   contractSummaryCacheTtlSeconds,
+  rabbitMqUrl,
+  contractExpirationIntervalMs,
 };

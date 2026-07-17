@@ -3,7 +3,7 @@ import {
   contractParamsValidate,
   createContractValidate,
   updateContractValidate,
-} from '../../src/modules/contract/contract.validate';
+} from '../../../src/modules/contract/contract.validate';
 
 const valid = {
   number: 'CTR-001',

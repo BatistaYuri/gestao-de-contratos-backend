@@ -1,7 +1,7 @@
 import { ContractStatus, type Client, type Contract } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
-import type { ContractRepository, ContractWithClient } from '../../src/modules/contract/contract.repository';
-import { ContractService } from '../../src/modules/contract/contract.service';
+import type { ContractRepository, ContractWithClient } from '../../../src/modules/contract/contract.repository';
+import { ContractService } from '../../../src/modules/contract/contract.service';
 
 const client: Client = {
   id: '06f37985-9f78-4ced-95bb-d9328e30f93c',

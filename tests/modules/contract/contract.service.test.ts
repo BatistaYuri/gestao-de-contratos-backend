@@ -43,6 +43,7 @@ function repository(): ContractRepository {
     update: vi.fn().mockResolvedValue(contract),
     softDelete: vi.fn().mockResolvedValue(undefined),
     countByStatus: vi.fn().mockResolvedValue([]),
+    updateStatusBefore: vi.fn().mockResolvedValue(0),
   };
 }
 

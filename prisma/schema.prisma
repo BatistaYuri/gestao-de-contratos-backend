@@ -29,6 +29,7 @@ model Contract {
   dueDate   DateTime       @db.Date
   status    ContractStatus
   closedAt  DateTime?
+  deletedAt DateTime?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   client    Client         @relation(fields: [clientId], references: [id])

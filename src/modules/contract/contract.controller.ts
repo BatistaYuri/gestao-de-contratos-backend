@@ -26,7 +26,7 @@ contractRoutes.get('/', async (_, response) => {
   response.json(await contractService.list());
 });
 
-contractRoutes.get('/summary', async (_request, response) => {
+contractRoutes.get('/summary', async (_, response) => {
   response.json(await contractService.summary());
 });
 

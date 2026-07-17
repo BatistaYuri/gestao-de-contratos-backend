@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createClientValidate } from '../../src/modules/clients/client.validate';
+import { createClientValidate } from '../../../src/modules/clients/client.validate';
 
 describe('createClientValidate', () => {
   it('accepts a valid client and normalizes the document', () => {

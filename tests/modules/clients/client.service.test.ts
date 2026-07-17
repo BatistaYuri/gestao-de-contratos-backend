@@ -1,8 +1,8 @@
 import type { Client } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ClientRepository } from '../../src/modules/clients/client.repository';
-import { ClientService } from '../../src/modules/clients/client.service';
+import type { ClientRepository } from '../../../src/modules/clients/client.repository';
+import { ClientService } from '../../../src/modules/clients/client.service';
 
 const client: Client = {
   id: '06f37985-9f78-4ced-95bb-d9328e30f93c',

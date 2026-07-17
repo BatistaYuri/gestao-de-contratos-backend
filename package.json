@@ -5,8 +5,12 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/server.ts",
+    "dev:scheduler": "tsx watch --env-file=.env src/scheduler.ts",
+    "dev:worker": "tsx watch --env-file=.env src/worker.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:scheduler": "node --env-file=.env dist/scheduler.js",
+    "start:worker": "node --env-file=.env dist/worker.js",
     "lint": "eslint src",
     "lint:fix": "eslint . --fix",
     "test": "vitest run tests",
@@ -23,6 +27,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "amqplib": "^2.0.1",
     "express": "^5.2.1",
     "jose": "^6.2.3",
     "pg": "^8.22.0",
@@ -30,6 +35,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/amqplib": "^0.10.8",
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.1",
     "@types/pg": "^8.20.0",

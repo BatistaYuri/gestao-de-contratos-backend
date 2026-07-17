@@ -35,4 +35,5 @@ model Contract {
   client    Client         @relation(fields: [clientId], references: [id])
 
   @@index([clientId])
+  @@index([status, dueDate])
 }

@@ -1,4 +1,4 @@
-import { prisma } from '../../database/prisma';
+import { prisma } from '../../infra/database/prisma';
 import type { Client } from '@prisma/client';
 import type { CreateClientInput } from './client.validate';
 

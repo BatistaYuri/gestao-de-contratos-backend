@@ -10,17 +10,28 @@ import type {
   CreateContractInput,
   UpdateContractInput,
 } from './contract.validate';
+import { ContractSummaryCache } from '../../infra/redis/contract-summary-cache';
+
+export type ContractSummary = {
+  active: number;
+  expired: number;
+  closed: number;
+  total: number;
+};
 
 export class ContractService {
   constructor(
     private readonly repository: ContractRepository,
+    private readonly summaryCache?: ContractSummaryCache,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
   async create(input: CreateContractInput): Promise<ContractWithClient> {
     await this.ensureClientExists(input.clientId);
     await this.ensureUniqueNumber(input.number);
-    return this.repository.create({ ...input, status: this.statusFor(input.dueDate) });
+    const contract = await this.repository.create({ ...input, status: this.statusFor(input.dueDate) });
+    await this.summaryCache?.invalidate();
+    return contract;
   }
 
   list(): Promise<ContractWithClient[]> {
@@ -42,7 +53,9 @@ export class ContractService {
       ? { status: ContractStatus.CLOSED, closedAt: contract.closedAt }
       : { status: this.statusFor(input.dueDate), closedAt: null };
 
-    return this.repository.update(id, { ...input, ...lifecycle });
+    const updated = await this.repository.update(id, { ...input, ...lifecycle });
+    await this.summaryCache?.invalidate();
+    return updated;
   }
 
   async close(id: string): Promise<ContractWithClient> {
@@ -50,19 +63,24 @@ export class ContractService {
     if (contract.status === ContractStatus.CLOSED) {
       throw new AppError('Contract is already closed', 409);
     }
-    return this.repository.update(id, {
-      status: ContractStatus.CLOSED,
-      closedAt: this.now(),
-    });
+    const closed = await this.repository.update(id, { status: ContractStatus.CLOSED, closedAt: this.now()});
+    await this.summaryCache?.invalidate();
+    return closed;
   }
 
   async delete(id: string): Promise<void> {
     await this.requireContract(id);
     await this.repository.softDelete(id, this.now());
+    await this.summaryCache?.invalidate();
   }
 
-  async summary(): Promise<{active: number; expired: number; closed: number; total: number}> {
-    return this.normalizeSummary(await this.repository.countByStatus());
+  async summary(): Promise<ContractSummary> {
+    const cached = await this.summaryCache?.get();
+    if (cached) return cached;
+
+    const summary = this.normalizeSummary(await this.repository.countByStatus());
+    await this.summaryCache?.set(summary);
+    return summary;
   }
 
   private statusFor(dueDate: Date): Contract['status'] {

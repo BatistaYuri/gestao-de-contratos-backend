@@ -7,6 +7,7 @@ import type {
 } from './contract.validate';
 
 export type ContractWithClient = Contract & { client: Client };
+export type ContractStatusCount = { status: Contract['status']; _count: number; };
 
 export interface ContractRepository {
   clientExists(id: string): Promise<boolean>;
@@ -16,6 +17,7 @@ export interface ContractRepository {
   findById(id: string): Promise<ContractWithClient | null>;
   update(id: string, data: Partial<UpdateContractInput> & Pick<Contract, 'status' | 'closedAt'>): Promise<ContractWithClient>;
   softDelete(id: string, deletedAt: Date): Promise<void>;
+  countByStatus(): Promise<ContractStatusCount[]>;
 }
 
 const includeClient = { client: true } as const;
@@ -54,5 +56,10 @@ export class PrismaContractRepository implements ContractRepository {
 
   async softDelete(id: string, deletedAt: Date): Promise<void> {
     await prisma.contract.update({ where: { id }, data: { deletedAt } });
+  }
+
+  async countByStatus(): Promise<ContractStatusCount[]> {
+    const counts = await prisma.contract.groupBy({ by: ['status'], where: { deletedAt: null }, _count: true});
+    return counts;
   }
 }

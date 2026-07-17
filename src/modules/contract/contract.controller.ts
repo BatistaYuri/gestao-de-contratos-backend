@@ -26,6 +26,10 @@ contractRoutes.get('/', async (_, response) => {
   response.json(await contractService.list());
 });
 
+contractRoutes.get('/summary', async (_request, response) => {
+  response.json(await contractService.summary());
+});
+
 contractRoutes.get('/:id', validateParams(contractParamsValidate), async (request, response) => {
     response.json(
       await contractService.getById((request.params as ContractParams).id),
@@ -52,3 +56,4 @@ contractRoutes.patch('/:id/close', validateParams(contractParamsValidate), async
     );
   },
 );
+

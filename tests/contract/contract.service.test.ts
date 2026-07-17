@@ -41,6 +41,7 @@ function repository(): ContractRepository {
     findById: vi.fn().mockResolvedValue(contract),
     update: vi.fn().mockResolvedValue(contract),
     softDelete: vi.fn().mockResolvedValue(undefined),
+    countByStatus: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -130,5 +131,42 @@ describe('ContractService', () => {
     const repo = repository();
     await new ContractService(repo, now).delete(contract.id);
     expect(repo.softDelete).toHaveBeenCalledWith(contract.id, now());
+  });
+
+  it('returns zero for every summary count when there are no contracts', async () => {
+    const summary = await new ContractService(repository(), now).summary();
+
+    expect(summary).toEqual({ active: 0, expired: 0, closed: 0, total: 0 });
+  });
+
+  it('normalizes summary counts by status and calculates the total', async () => {
+    const repo = repository();
+    vi.mocked(repo.countByStatus).mockResolvedValue([
+      { status: ContractStatus.ACTIVE, _count: 4 },
+      { status: ContractStatus.EXPIRED, _count: 2 },
+      { status: ContractStatus.CLOSED, _count: 3 },
+    ]);
+
+    await expect(new ContractService(repo, now).summary()).resolves.toEqual({
+      active: 4,
+      expired: 2,
+      closed: 3,
+      total: 9,
+    });
+  });
+
+  it('returns zero when a status is absent from the summary aggregation', async () => {
+    const repo = repository();
+    vi.mocked(repo.countByStatus).mockResolvedValue([
+      { status: ContractStatus.ACTIVE, _count: 1 },
+      { status: ContractStatus.CLOSED, _count: 2 },
+    ]);
+
+    await expect(new ContractService(repo, now).summary()).resolves.toEqual({
+      active: 1,
+      expired: 0,
+      closed: 2,
+      total: 3,
+    });
   });
 });

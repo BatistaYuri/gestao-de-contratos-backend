@@ -18,6 +18,7 @@ export interface ContractRepository {
   update(id: string, data: Partial<UpdateContractInput> & Pick<Contract, 'status' | 'closedAt'>): Promise<ContractWithClient>;
   softDelete(id: string, deletedAt: Date): Promise<void>;
   countByStatus(): Promise<ContractStatusCount[]>;
+  updateStatusBefore(currentStatus: Contract['status'], dueBefore: Date, newStatus: Contract['status']): Promise<number>;
 }
 
 const includeClient = { client: true } as const;
@@ -61,5 +62,18 @@ export class PrismaContractRepository implements ContractRepository {
   async countByStatus(): Promise<ContractStatusCount[]> {
     const counts = await prisma.contract.groupBy({ by: ['status'], where: { deletedAt: null }, _count: true});
     return counts;
+  }
+
+  async updateStatusBefore(currentStatus: Contract['status'], dueBefore: Date, newStatus: Contract['status']): Promise<number> {
+    const result = await prisma.contract.updateMany({
+      where: {
+        status: currentStatus,
+        dueDate: { lt: dueBefore },
+        deletedAt: null,
+      },
+      data: { status: newStatus },
+    });
+
+    return result.count;
   }
 }

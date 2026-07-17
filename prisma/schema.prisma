@@ -7,9 +7,31 @@ datasource db {
 }
 
 model Client {
-  id        String   @id @default(uuid())
+  id        String     @id @default(uuid())
   name      String
-  document  String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  document  String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  contracts Contract[]
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  CLOSED
+}
+
+model Contract {
+  id        String         @id @default(uuid())
+  number    String         @unique
+  clientId  String
+  value     Decimal        @db.Decimal(12, 2)
+  dueDate   DateTime       @db.Date
+  status    ContractStatus
+  closedAt  DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  client    Client         @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
 }

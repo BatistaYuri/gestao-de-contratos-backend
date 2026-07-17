@@ -22,12 +22,6 @@ if (!jwtExpiresIn) {
   throw new Error('Missing JWT_EXPIRES_IN environment variable');
 }
 
-if (!/^[1-9]\d*[smhdwy]$/.test(jwtExpiresIn)) {
-  throw new Error(
-    'Invalid JWT_EXPIRES_IN: expected a positive duration such as 8h',
-  );
-}
-
 const adminUsername = process.env.ADMIN_USERNAME;
 
 if (!adminUsername) {
@@ -40,6 +34,24 @@ if (!adminPassword) {
   throw new Error('Missing ADMIN_PASSWORD environment variable');
 }
 
+const redisHost = process.env.REDIS_HOST;
+
+if (!redisHost) {
+  throw new Error('Missing REDIS_HOST environment variable');
+}
+
+const redisPort = Number(process.env.REDIS_PORT);
+
+if (!redisPort) {
+  throw new Error('Missing REDIS_PORT environment variable');
+}
+
+const contractSummaryCacheTtlSeconds = Number(process.env.CONTRACT_SUMMARY_CACHE_TTL_SECONDS);
+
+if (!contractSummaryCacheTtlSeconds) {
+  throw new Error('Missing CONTRACT_SUMMARY_CACHE_TTL_SECONDS environment variable');
+}
+
 export const env = {
   adminUsername,
   adminPassword,
@@ -47,4 +59,7 @@ export const env = {
   jwtExpiresIn,
   jwtSecret,
   port,
+  redisHost,
+  redisPort,
+  contractSummaryCacheTtlSeconds,
 };

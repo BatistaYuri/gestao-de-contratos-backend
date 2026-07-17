@@ -5,3 +5,11 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  document  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

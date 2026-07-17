@@ -7,3 +7,10 @@ export function validate(schema: ZodType): RequestHandler {
     next();
   };
 }
+
+export function validateParams(schema: ZodType): RequestHandler {
+  return (request, _response, next) => {
+    request.params = schema.parse(request.params) as typeof request.params;
+    next();
+  };
+}

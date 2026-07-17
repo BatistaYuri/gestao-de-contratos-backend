@@ -1,12 +1,16 @@
-export default [
+const tseslint = require("typescript-eslint");
+
+module.exports = tseslint.config(
   {
-    files: ["src/**/*.ts"],
-    languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: "module",
-    },
+    ignores: ["dist/**", "node_modules/**", "eslint.config.js"],
+  },
+  ...tseslint.configs.recommended,
+  {
     rules: {
-      "no-unused-vars": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_" },
+      ],
     },
   },
-];
+);

@@ -3,6 +3,7 @@ import { ContractStatus, type Contract } from '@prisma/client';
 import { AppError } from '../../erros/app-error';
 import type {
   ContractRepository,
+  ContractStatusCount,
   ContractWithClient,
 } from './contract.repository';
 import type {
@@ -60,6 +61,10 @@ export class ContractService {
     await this.repository.softDelete(id, this.now());
   }
 
+  async summary(): Promise<{active: number; expired: number; closed: number; total: number}> {
+    return this.normalizeSummary(await this.repository.countByStatus());
+  }
+
   private statusFor(dueDate: Date): Contract['status'] {
     const now = this.now();
     const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
@@ -83,5 +88,13 @@ export class ContractService {
     const contract = await this.repository.findById(id);
     if (!contract) throw new AppError('Contract not found', 404);
     return contract;
+  }
+
+  private normalizeSummary(counts: ContractStatusCount[]) {
+    const countByStatus = new Map(counts.map(({ status, _count }) => [status, _count]));
+    const active = countByStatus.get(ContractStatus.ACTIVE) ?? 0;
+    const expired = countByStatus.get(ContractStatus.EXPIRED) ?? 0;
+    const closed = countByStatus.get(ContractStatus.CLOSED) ?? 0;
+    return { active, expired, closed, total: active + expired + closed };
   }
 }

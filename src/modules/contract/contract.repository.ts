@@ -3,22 +3,30 @@ import type {
   Client,
   Contract,
   ContractApprovalRevision,
+  ContractItem,
   Prisma,
 } from '@prisma/client';
 
 import { prisma } from '../../infra/database/prisma';
 import type { CreateContractInput, UpdateContractInput } from './contract.validate';
 
-export type ContractWithClient = Contract & { client: Client };
+export type ContractWithClient = Contract & { client: Client; items: ContractItem[] };
 export type ContractStatusCount = { status: Contract['status']; _count: number };
-export type ContractUpdateData = Partial<UpdateContractInput> & Partial<Pick<Contract, 'status' | 'closedAt'>>;
+export type ContractUpdateData = Partial<Omit<UpdateContractInput, 'items'>> & Partial<Pick<Contract, 'status' | 'closedAt'>>;
+export type ContractWriteData = Omit<CreateContractInput, 'items'> & {
+  items: CreateContractInput['items'];
+  subtotal: Prisma.Decimal;
+  value: Prisma.Decimal;
+  status: Contract['status'];
+};
 
 export interface ContractRepository {
-  create(data: CreateContractInput & { status: Contract['status'] }): Promise<ContractWithClient>;
+  create(data: ContractWriteData): Promise<ContractWithClient>;
   findByNumber(number: string): Promise<Contract | null>;
   findMany(options: Prisma.ContractFindManyArgs): Promise<ContractWithClient[]>;
   findById(id: string): Promise<ContractWithClient | null>;
   update(id: string, data: ContractUpdateData): Promise<ContractWithClient>;
+  replace(id: string, data: ContractWriteData): Promise<ContractWithClient>;
   submitForApproval(
     id: string,
     snapshot: Prisma.InputJsonValue,
@@ -36,11 +44,14 @@ export interface ContractRepository {
   updateStatusBefore(currentStatus: Contract['status'], dueBefore: Date, newStatus: Contract['status']): Promise<number>;
 }
 
-const includeClient = { client: true } as const;
+const includeContractRelations = { client: true, items: true } as const;
 
 export class PrismaContractRepository implements ContractRepository {
-  create(data: CreateContractInput & { status: Contract['status'] }): Promise<ContractWithClient> {
-    return prisma.contract.create({ data, include: includeClient });
+  create({ items, ...data }: ContractWriteData): Promise<ContractWithClient> {
+    return prisma.$transaction((transaction) => transaction.contract.create({
+      data: { ...data, items: { create: items } },
+      include: includeContractRelations,
+    }));
   }
 
   findByNumber(number: string): Promise<Contract | null> {
@@ -51,19 +62,30 @@ export class PrismaContractRepository implements ContractRepository {
     return prisma.contract.findMany({
       ...options,
       where: { ...options.where, deletedAt: null },
-      include: includeClient,
+      include: includeContractRelations,
     }) as Promise<ContractWithClient[]>;
   }
 
   findById(id: string): Promise<ContractWithClient | null> {
     return prisma.contract.findFirst({
       where: { id, deletedAt: null },
-      include: includeClient,
+      include: includeContractRelations,
     });
   }
 
   update(id: string, data: ContractUpdateData): Promise<ContractWithClient> {
-    return prisma.contract.update({ where: { id }, data, include: includeClient });
+    return prisma.contract.update({ where: { id }, data, include: includeContractRelations });
+  }
+
+  replace(id: string, { items, ...data }: ContractWriteData): Promise<ContractWithClient> {
+    return prisma.$transaction(async (transaction) => {
+      await transaction.contractItem.deleteMany({ where: { contractId: id } });
+      return transaction.contract.update({
+        where: { id },
+        data: { ...data, items: { create: items } },
+        include: includeContractRelations,
+      });
+    });
   }
 
   async submitForApproval(
@@ -88,7 +110,7 @@ export class PrismaContractRepository implements ContractRepository {
       return transaction.contract.update({
         where: { id },
         data: { approvalStatus: 'PENDING' },
-        include: includeClient,
+        include: includeContractRelations,
       });
     });
   }
@@ -111,7 +133,7 @@ export class PrismaContractRepository implements ContractRepository {
       return transaction.contract.update({
         where: { id },
         data: { approvalStatus: status },
-        include: includeClient,
+        include: includeContractRelations,
       });
     });
   }

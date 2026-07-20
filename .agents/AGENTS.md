@@ -2,81 +2,110 @@
 
 ## Purpose
 
-This file provides guidance for AI agents reviewing code and writing tests in this repository.
+Use AI to review, test, and change this repository only when explicitly requested.
 
-## What the agent can do
+Before changing code, read:
 
-The agent may:
+- `docs/ARCHITECTURE.md`
+- `docs/BUSINESS_RULES.md`
 
-* review existing code;
-* identify bugs, risks, and maintainability issues;
-* suggest improvements to readability and organization;
-* verify TypeScript typings;
-* identify duplicated logic and violations of good practices;
-* create and update unit tests;
-* create integration tests when requested;
-* run tests, lint, and build commands to validate changes.
+These documents describe the current implementation and are the repository references for architecture and business behavior.
 
-## What the agent must not do
+## Project context
 
-The agent must not:
+This is a contract-management REST API built with Node.js, TypeScript, Express, Prisma, PostgreSQL, Zod, JWT, Redis, RabbitMQ, and Vitest.
 
-* change business rules;
-* implement new features without being asked;
-* change API contracts;
-* reorganize the project architecture;
-* add or remove dependencies without authorization;
-* modify the database or migrations;
-* remove existing tests only to make the test suite pass;
-* create commits or push changes.
+The API supports authentication, client creation and listing, contract CRUD, manual closing, soft deletion of contracts, status summaries, Redis caching, and asynchronous expiration.
 
-## Code review
+## Architecture rules
 
-When reviewing code, consider:
+Keep the current flow:
 
-* possible bugs;
-* error handling;
-* input validation;
-* security;
-* typings;
-* duplicated logic;
-* naming clarity;
-* responsibilities of functions and files;
-* consistency with the current project standards.
+```text
+Controller -> validation -> service -> repository -> Prisma/PostgreSQL
+Scheduler -> RabbitMQ -> worker -> expiration service
+Service -> Redis cache
+```
 
-Do not change code based only on personal preference.
+- Controllers handle HTTP concerns.
+- Zod schemas validate and normalize request input.
+- Services own business rules and application errors.
+- Repositories own database queries.
+- Infrastructure modules own Prisma, Redis, and RabbitMQ integration.
+- Do not access Prisma from controllers.
+- Do not place database-dependent rules in validation schemas.
+- Do not reorganize the architecture without permission.
+
+## Before changing code
+
+1. Read the relevant code, tests, Prisma schema, and migrations.
+2. Check the working tree and preserve user changes.
+3. Identify affected routes, rules, and layers.
+4. Compare the requested behavior with `docs/BUSINESS_RULES.md`.
+5. Explain assumptions or conflicts that may change behavior.
+
+## Change rules
+
+- Make the smallest complete change for the request.
+- Avoid unrelated refactors.
+- Preserve existing API behavior unless a change is explicitly requested.
+- Do not add, remove, or upgrade dependencies without permission.
+- Do not change business rules without permission.
+- Create a new migration for schema changes; do not edit migration history.
+- Keep Redis failures from corrupting PostgreSQL behavior.
+- Invalidate the contract summary cache after successful relevant mutations.
+- Keep RabbitMQ expiration processing idempotent.
+- Do not expose secrets, credentials, tokens, or `.env` contents.
+- Do not create commits or push changes unless requested.
 
 ## Tests
 
-When writing tests:
+Add or update tests for every changed behavior. Cover the success path, expected errors, and relevant edge cases.
 
-* follow the existing project patterns;
-* cover the main success flow;
-* cover expected errors;
-* cover relevant edge cases;
-* use mocks only when necessary;
-* avoid tests that depend on execution order;
-* avoid testing internal implementation details unnecessarily;
-* do not modify the implementation only to make testing easier.
+- Follow existing test patterns.
+- Test observable behavior instead of internal implementation details.
+- Use mocks only when needed.
+- Do not depend on test execution order.
+- Do not remove or weaken tests to make the suite pass.
+- Do not change production behavior only to simplify testing.
 
-## Completion
-
-Before finishing, run the commands available in the project, such as:
+Before completion, run:
 
 ```bash
-npm run test
+npm test
 npm run lint
 npm run build
 ```
 
-When finished, report:
+For schema changes, also validate the Prisma schema and migration path. Report anything that could not be verified.
 
-* the issues found;
-* the tests created or updated;
-* the files modified;
-* the commands executed;
-* any points that could not be validated.
+## Review checklist
+
+Review changes for:
+
+- business-rule correctness;
+- input validation;
+- authentication and sensitive-data exposure;
+- error handling;
+- TypeScript types;
+- soft-deletion filters;
+- cache consistency;
+- RabbitMQ acknowledgement, retry, and idempotency;
+- migration safety;
+- duplicated logic and unclear responsibilities.
+
+Do not propose changes based only on style preference.
+
+## Completion report
+
+Report:
+
+- behavior implemented;
+- files and migrations changed;
+- tests added or updated;
+- commands and results;
+- API changes, assumptions, and remaining risks.
 
 ## Main rule
 
-Make only the changes necessary to review the code or create tests, while preserving the application's current behavior.
+Implement only what was requested, preserve unrelated behavior, and leave the repository in a verifiable state.

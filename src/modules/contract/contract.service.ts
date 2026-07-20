@@ -1,9 +1,9 @@
 import {
   ApprovalStatus,
   ContractStatus,
+  Prisma,
   type Contract,
   type ContractApprovalRevision,
-  type Prisma,
 } from '@prisma/client';
 
 import { AppError } from '../../erros/app-error';
@@ -38,7 +38,8 @@ export class ContractService {
   async create(input: CreateContractInput): Promise<ContractWithClient> {
     await this.ensureClientExists(input.clientId);
     await this.ensureUniqueNumber(input.number);
-    const contract = await this.repository.create({ ...input, status: this.statusFor(input.dueDate) });
+    const totals = this.calculateTotals(input);
+    const contract = await this.repository.create({ ...input, ...totals, status: this.statusFor(input.dueDate) });
     await this.summaryCache?.invalidate();
     return contract;
   }
@@ -60,10 +61,10 @@ export class ContractService {
     await this.ensureClientExists(input.clientId);
     await this.ensureUniqueNumber(input.number, id);
 
-    const updated = await this.repository.update(id, {
+    const updated = await this.repository.replace(id, {
       ...input,
+      ...this.calculateTotals(input),
       status: this.statusFor(input.dueDate),
-      closedAt: null,
     });
     await this.summaryCache?.invalidate();
     return updated;
@@ -163,7 +164,7 @@ export class ContractService {
     }
   }
 
-  private snapshot(contract: Contract): Prisma.InputJsonValue {
+  private snapshot(contract: ContractWithClient): Prisma.InputJsonValue {
     return {
       number: contract.number,
       clientId: contract.clientId,
@@ -173,6 +174,23 @@ export class ContractService {
       currency: contract.currency,
       discount: contract.discount.toString(),
       additionalFees: contract.additionalFees.toString(),
+      subtotal: contract.subtotal.toString(),
+      items: contract.items.map((item) => ({
+        description: item.description,
+        quantity: item.quantity.toString(),
+        unitPrice: item.unitPrice.toString(),
+      })),
+    };
+  }
+
+  private calculateTotals(input: CreateContractInput): { subtotal: Prisma.Decimal; value: Prisma.Decimal } {
+    const subtotal = input.items.reduce(
+      (sum, item) => sum.plus(new Prisma.Decimal(item.quantity).times(item.unitPrice)),
+      new Prisma.Decimal(0),
+    ).toDecimalPlaces(2);
+    return {
+      subtotal,
+      value: subtotal.minus(input.discount).plus(input.additionalFees).toDecimalPlaces(2),
     };
   }
 

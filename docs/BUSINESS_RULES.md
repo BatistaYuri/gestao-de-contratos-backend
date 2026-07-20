@@ -35,11 +35,13 @@ This document describes only the behavior currently implemented in the backend.
 
 - Contract number is required and unique.
 - Client ID must be a UUID for an existing client.
-- Value must be a positive number.
+- A contract must contain at least one item; clients do not send `value` or `subtotal`.
+- Item descriptions are required, quantities are positive decimals with at most three decimal places, and unit prices are non-negative decimal strings with at most two decimal places.
 - Contract type is required and must be `SERVICE`, `SUPPLY`, `RENTAL`, or `OTHER`.
 - Currency is limited to `BRL`.
 - Discount and additional fees are non-negative decimal strings with at most two decimal places.
-- The resulting amount (`value - discount + additionalFees`) cannot be negative.
+- `subtotal` is the sum of `quantity * unitPrice`, rounded to two decimal places.
+- `value` is calculated as `subtotal - discount + additionalFees` and cannot be negative.
 - Due date must be a valid `YYYY-MM-DD` date.
 - Unknown fields are rejected by strict validation.
 
@@ -79,7 +81,7 @@ REJECTED --submit--> PENDING
 
 ### Queries
 
-- Contract lists include client data.
+- Contract lists and details include client and item data.
 - Contracts are ordered by due date ascending and creation date descending.
 - Lists can be filtered by lifecycle status, contract type, approval status, and client ID.
 - Contract detail requires a valid UUID.
@@ -87,7 +89,8 @@ REJECTED --submit--> PENDING
 
 ### Update
 
-- Update replaces number, client, value, type, due date, currency, discount, and additional fees.
+- Update replaces number, client, type, due date, currency, discount, additional fees, and the complete item collection in one database transaction.
+- Items and derived totals cannot be changed after approval because only draft or rejected contracts are editable.
 - The new client must exist.
 - The number may remain assigned to the same contract.
 - A number assigned to another contract returns `409 Conflict`.

@@ -10,9 +10,9 @@ import {
 const valid = {
   number: 'CTR-001',
   clientId: '06f37985-9f78-4ced-95bb-d9328e30f93c',
-  value: 1500.5,
   type: 'SERVICE',
   dueDate: '2026-07-18',
+  items: [{ description: 'Consulting', quantity: '10', unitPrice: '150.05' }],
 };
 
 describe('contract validation', () => {
@@ -29,7 +29,11 @@ describe('contract validation', () => {
   it.each([
     { ...valid, number: '' },
     { ...valid, clientId: 'invalid' },
-    { ...valid, value: 0 },
+    { ...valid, items: [] },
+    { ...valid, items: [{ description: '', quantity: '1', unitPrice: '10' }] },
+    { ...valid, items: [{ description: 'Item', quantity: '0', unitPrice: '10' }] },
+    { ...valid, items: [{ description: 'Item', quantity: '-1', unitPrice: '10' }] },
+    { ...valid, items: [{ description: 'Item', quantity: '1', unitPrice: '-1' }] },
     { ...valid, type: 'INVALID' },
     { ...valid, currency: 'USD' },
     { ...valid, discount: '-1' },
@@ -37,6 +41,8 @@ describe('contract validation', () => {
     { ...valid, discount: '1500.51' },
     { ...valid, dueDate: '2026-02-30' },
     { ...valid, dueDate: '18/07/2026' },
+    { ...valid, value: '1500.50' },
+    { ...valid, subtotal: '1500.50' },
     { ...valid, status: 'CLOSED' },
     { ...valid, closedAt: '2026-07-17' },
   ])('rejects invalid creation input: %o', (input) => {

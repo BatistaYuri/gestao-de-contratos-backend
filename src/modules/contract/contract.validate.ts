@@ -14,6 +14,16 @@ const nonNegativeDecimal = zod
   .string()
   .regex(/^\d+(\.\d{1,2})?$/, 'Value must be a non-negative decimal with at most 2 decimal places');
 
+const positiveQuantity = zod.string()
+  .regex(/^\d+(\.\d{1,3})?$/, 'Quantity must be a positive decimal with at most 3 decimal places')
+  .refine((value) => new Prisma.Decimal(value).greaterThan(0), 'Quantity must be greater than zero');
+
+const contractItem = zod.object({
+  description: zod.string().trim().min(1, 'Item description is required'),
+  quantity: positiveQuantity,
+  unitPrice: nonNegativeDecimal,
+}).strict();
+
 export const contractParamsValidate = zod
   .object({ id: zod.uuid('Contract ID must be a UUID') })
   .strict();
@@ -22,19 +32,19 @@ export const createContractValidate = zod
   .object({
     number: zod.string().trim().min(1, 'Number is required'),
     clientId: zod.uuid('Client must be a UUID'),
-    value: zod.number().positive('Value must be positive'),
     type: zod.enum(ContractType),
     dueDate: dateOnly,
     currency: zod.literal('BRL').default('BRL'),
     discount: nonNegativeDecimal.default('0'),
     additionalFees: nonNegativeDecimal.default('0'),
+    items: zod.array(contractItem).min(1, 'Contract must have at least one item'),
   })
   .strict()
   .refine(
-    ({ value, discount, additionalFees }) => new Prisma.Decimal(value)
-      .minus(discount)
-      .plus(additionalFees)
-      .isPositive() || new Prisma.Decimal(value).minus(discount).plus(additionalFees).isZero(),
+    ({ items, discount, additionalFees }) => items.reduce(
+      (subtotal, item) => subtotal.plus(new Prisma.Decimal(item.quantity).times(item.unitPrice)),
+      new Prisma.Decimal(0),
+    ).toDecimalPlaces(2).minus(discount).plus(additionalFees).greaterThanOrEqualTo(0),
     { message: 'Contract total cannot be negative' },
   );
 

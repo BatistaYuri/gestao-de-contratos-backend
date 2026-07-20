@@ -57,6 +57,7 @@ model Contract {
   number    String         @unique
   clientId  String
   value     Decimal        @db.Decimal(12, 2)
+  subtotal  Decimal        @db.Decimal(12, 2)
   type      ContractType
   approvalStatus  ApprovalStatus @default(DRAFT)
   currency        String         @default("BRL")
@@ -70,9 +71,24 @@ model Contract {
   updatedAt DateTime       @updatedAt
   client    Client         @relation(fields: [clientId], references: [id])
   approvalRevisions ContractApprovalRevision[]
+  items     ContractItem[]
 
   @@index([clientId])
   @@index([status, dueDate])
   @@index([type])
   @@index([approvalStatus])
+}
+
+model ContractItem {
+  id          String   @id @default(uuid())
+  contractId  String
+  description String
+  quantity    Decimal  @db.Decimal(12, 3)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
 }

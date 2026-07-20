@@ -59,6 +59,7 @@ function repository(): ContractRepository {
     create: vi.fn().mockResolvedValue(contract),
     findByNumber: vi.fn().mockResolvedValue(null),
     findMany: vi.fn().mockResolvedValue([]),
+    count: vi.fn().mockResolvedValue(0),
     findById: vi.fn().mockResolvedValue(contract),
     update: vi.fn().mockResolvedValue(contract),
     replace: vi.fn().mockResolvedValue(contract),
@@ -143,7 +144,9 @@ describe('ContractService', () => {
     await new ContractService(repo, clientLookup(), undefined, now).list();
     expect(repo.findMany).toHaveBeenCalledWith({
       where: {},
-      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }],
+      skip: 0,
+      take: 20,
     });
   });
 
@@ -155,8 +158,18 @@ describe('ContractService', () => {
       approvalStatus: ApprovalStatus.PENDING,
       clientId: client.id,
     };
-    await new ContractService(repo, clientLookup(), undefined, now).list(filters);
+    vi.mocked(repo.count).mockResolvedValue(21);
+    await expect(new ContractService(repo, clientLookup(), undefined, now).list({
+      ...filters,
+      page: 2,
+      pageSize: 10,
+    })).resolves.toEqual({
+      data: [],
+      pagination: { page: 2, pageSize: 10, total: 21, totalPages: 3 },
+    });
     expect(repo.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: filters }));
+    expect(repo.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 10, take: 10 }));
+    expect(repo.count).toHaveBeenCalledWith(filters);
   });
 
   it('finds a contract by ID and rejects a missing one', async () => {

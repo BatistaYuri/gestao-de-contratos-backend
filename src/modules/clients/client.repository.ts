@@ -1,11 +1,12 @@
 import { prisma } from '../../infra/database/prisma';
-import type { Client } from '@prisma/client';
+import type { Client, Prisma } from '@prisma/client';
 import type { CreateClientInput, UpdateClientInput } from './client.validate';
 
 export interface ClientRepository {
   create(data: CreateClientInput): Promise<Client>;
   findByDocument(document: string): Promise<Client | null>;
-  findMany(options: { orderBy: { name: 'asc' } }): Promise<Client[]>;
+  findMany(options: Prisma.ClientFindManyArgs): Promise<Client[]>;
+  count(): Promise<number>;
   findById(id: string): Promise<Client | null>;
   update(id: string, data: UpdateClientInput): Promise<Client>;
   softDelete(id: string, deletedAt: Date): Promise<void>;
@@ -22,8 +23,12 @@ export class PrismaClientRepository implements ClientRepository {
     return prisma.client.findUnique({ where: { document } });
   }
 
-  findMany(options: { orderBy: { name: 'asc' } }): Promise<Client[]> {
+  findMany(options: Prisma.ClientFindManyArgs): Promise<Client[]> {
     return prisma.client.findMany({ ...options, where: { deletedAt: null } });
+  }
+
+  count(): Promise<number> {
+    return prisma.client.count({ where: { deletedAt: null } });
   }
 
   findById(id: string): Promise<Client | null> {

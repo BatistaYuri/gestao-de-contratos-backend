@@ -358,6 +358,30 @@ describe('ContractService', () => {
     expect(cache.set).toHaveBeenCalledWith(result);
   });
 
+  it('applies the list filters to the summary and bypasses the global cache', async () => {
+    const repo = repository();
+    const cache = summaryCache();
+    const filters = {
+      status: ContractStatus.ACTIVE,
+      type: ContractType.SERVICE,
+      approvalStatus: ApprovalStatus.APPROVED,
+      clientId: client.id,
+    };
+    vi.mocked(repo.countByStatus).mockResolvedValue([
+      { status: ContractStatus.ACTIVE, _count: 2 },
+    ]);
+
+    await expect(new ContractService(repo, clientLookup(), cache, now).summary(filters)).resolves.toEqual({
+      active: 2,
+      expired: 0,
+      closed: 0,
+      total: 2,
+    });
+    expect(repo.countByStatus).toHaveBeenCalledWith(filters);
+    expect(cache.get).not.toHaveBeenCalled();
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
   it.each(['create', 'update', 'close', 'delete'] as const)(
     'invalidates the summary cache after %s',
     async (operation) => {

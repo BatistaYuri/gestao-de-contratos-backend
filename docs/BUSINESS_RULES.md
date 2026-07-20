@@ -19,8 +19,15 @@ This document describes only the behavior currently implemented in the backend.
 - The document is unique.
 - Duplicate documents return `409 Conflict`.
 - Clients are listed alphabetically by name.
-- The API currently supports creating and listing clients.
-- A contract can reference only an existing client.
+- The API supports creating, listing, viewing, updating, and soft-deleting clients.
+- Client IDs in detail, update, and deletion routes must be UUIDs.
+- Updates accept name and document and use the same trimming and numeric document normalization as creation.
+- A client may retain its current document, but may not use a document belonging to another client.
+- Deleted clients are absent from list and detail queries and return `404 Not Found`.
+- A client with a non-deleted contract cannot be deleted and returns `409 Conflict`.
+- A client may be deleted when all related contracts are soft-deleted.
+- Documents remain unique and reserved after client deletion.
+- A contract can reference only an existing, non-deleted client.
 
 ## Contracts
 

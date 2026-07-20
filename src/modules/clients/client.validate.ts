@@ -11,4 +11,12 @@ export const createClientValidate = zod
   })
   .strict();
 
+export const updateClientValidate = createClientValidate;
+
+export const clientParamsValidate = zod
+  .object({ id: zod.uuid('Client ID must be a UUID') })
+  .strict();
+
 export type CreateClientInput = zod.infer<typeof createClientValidate>;
+export type UpdateClientInput = zod.infer<typeof updateClientValidate>;
+export type ClientParams = zod.infer<typeof clientParamsValidate>;

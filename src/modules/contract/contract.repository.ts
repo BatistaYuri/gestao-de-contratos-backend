@@ -10,7 +10,6 @@ export type ContractWithClient = Contract & { client: Client };
 export type ContractStatusCount = { status: Contract['status']; _count: number; };
 
 export interface ContractRepository {
-  clientExists(id: string): Promise<boolean>;
   create(data: CreateContractInput & { status: Contract['status'] }): Promise<ContractWithClient>;
   findByNumber(number: string): Promise<Contract | null>;
   findMany(options: Prisma.ContractFindManyArgs): Promise<ContractWithClient[]>;
@@ -24,10 +23,6 @@ export interface ContractRepository {
 const includeClient = { client: true } as const;
 
 export class PrismaContractRepository implements ContractRepository {
-  async clientExists(id: string): Promise<boolean> {
-    return (await prisma.client.count({ where: { id } })) > 0;
-  }
-
   create(data: CreateContractInput & { status: Contract['status'] }): Promise<ContractWithClient> {
     return prisma.contract.create({ data, include: includeClient });
   }

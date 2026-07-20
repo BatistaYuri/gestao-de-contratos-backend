@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { PrismaClientRepository } from './client.repository';
 import { createClientValidate, type CreateClientInput } from './client.validate';
 import { ClientService } from './client.service';
-import { validate, validateParams } from '../../middleware/validate';
+import { validate, validateParams, validateQuery } from '../../middleware/validate';
 import {
   clientParamsValidate,
   type ClientParams,
+  listClientsValidate,
   updateClientValidate,
   type UpdateClientInput,
 } from './client.validate';
@@ -20,8 +21,8 @@ clientRoutes.post('/', validate(createClientValidate), async (request, response)
   },
 );
 
-clientRoutes.get('/', async (_request, response) => {
-  const clients = await clientService.list();
+clientRoutes.get('/', validateQuery(listClientsValidate), async (request, response) => {
+  const clients = await clientService.list(listClientsValidate.parse(request.query));
   response.json(clients);
 });
 

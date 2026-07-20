@@ -1,5 +1,6 @@
 import { ApprovalStatus, ContractStatus, ContractType, Prisma } from '@prisma/client';
 import zod from 'zod';
+import { paginationValidate } from '../../shared/pagination';
 
 const dateOnly = zod
   .string()
@@ -54,15 +55,18 @@ export const rejectContractValidate = zod.object({
   reason: zod.string().trim().min(1, 'Rejection reason is required'),
 }).strict();
 
-export const listContractsValidate = zod.object({
+export const contractFiltersValidate = zod.object({
   status: zod.enum(ContractStatus).optional(),
   type: zod.enum(ContractType).optional(),
   approvalStatus: zod.enum(ApprovalStatus).optional(),
   clientId: zod.uuid('Client must be a UUID').optional(),
 }).strict();
 
+export const listContractsValidate = contractFiltersValidate.extend(paginationValidate);
+
 export type ContractParams = zod.infer<typeof contractParamsValidate>;
 export type CreateContractInput = zod.infer<typeof createContractValidate>;
 export type UpdateContractInput = zod.infer<typeof updateContractValidate>;
 export type RejectContractInput = zod.infer<typeof rejectContractValidate>;
 export type ListContractsInput = zod.infer<typeof listContractsValidate>;
+export type ContractFiltersInput = zod.infer<typeof contractFiltersValidate>;

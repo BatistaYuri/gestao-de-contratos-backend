@@ -1,4 +1,5 @@
 import zod from 'zod';
+import { paginationValidate } from '../../shared/pagination';
 
 export const createClientValidate = zod
   .object({
@@ -17,6 +18,9 @@ export const clientParamsValidate = zod
   .object({ id: zod.uuid('Client ID must be a UUID') })
   .strict();
 
+export const listClientsValidate = zod.object(paginationValidate).strict();
+
 export type CreateClientInput = zod.infer<typeof createClientValidate>;
 export type UpdateClientInput = zod.infer<typeof updateClientValidate>;
 export type ClientParams = zod.infer<typeof clientParamsValidate>;
+export type ListClientsInput = zod.infer<typeof listClientsValidate>;

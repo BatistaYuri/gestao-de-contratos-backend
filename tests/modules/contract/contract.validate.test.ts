@@ -66,9 +66,14 @@ describe('contract validation', () => {
   });
 
   it('validates list filters and rejects unknown values', () => {
-    expect(listContractsValidate.safeParse({ type: 'SERVICE', approvalStatus: 'PENDING' }).success).toBe(true);
+    expect(listContractsValidate.parse({ type: 'SERVICE', approvalStatus: 'PENDING' })).toEqual({
+      type: 'SERVICE', approvalStatus: 'PENDING', page: 1, pageSize: 20,
+    });
+    expect(listContractsValidate.parse({ page: '2', pageSize: '50' })).toEqual({ page: 2, pageSize: 50 });
     expect(listContractsValidate.safeParse({ type: 'INVALID' }).success).toBe(false);
     expect(listContractsValidate.safeParse({ clientId: 'invalid' }).success).toBe(false);
+    expect(listContractsValidate.safeParse({ page: 0 }).success).toBe(false);
+    expect(listContractsValidate.safeParse({ pageSize: 101 }).success).toBe(false);
   });
 
   it('requires a non-empty rejection reason', () => {

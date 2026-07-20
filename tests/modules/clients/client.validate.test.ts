@@ -3,6 +3,7 @@ import {
   clientParamsValidate,
   createClientValidate,
   updateClientValidate,
+  listClientsValidate,
 } from '../../../src/modules/clients/client.validate';
 
 describe('createClientValidate', () => {
@@ -36,6 +37,18 @@ describe('createClientValidate', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe('client list validation', () => {
+  it('applies pagination defaults and coerces query strings', () => {
+    expect(listClientsValidate.parse({})).toEqual({ page: 1, pageSize: 20 });
+    expect(listClientsValidate.parse({ page: '2', pageSize: '10' })).toEqual({ page: 2, pageSize: 10 });
+  });
+
+  it('rejects invalid pagination', () => {
+    expect(listClientsValidate.safeParse({ page: 0 }).success).toBe(false);
+    expect(listClientsValidate.safeParse({ pageSize: 101 }).success).toBe(false);
   });
 });
 

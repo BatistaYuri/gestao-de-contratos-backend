@@ -11,8 +11,8 @@ import {
   type UpdateContractInput,
   updateContractValidate,
   listContractsValidate,
+  contractFiltersValidate,
   rejectContractValidate,
-  type ListContractsInput,
   type RejectContractInput,
 } from './contract.validate';
 import { RedisContractSummaryCache } from '../../infra/redis/contract-summary-cache';
@@ -36,11 +36,11 @@ contractRoutes.post('/', validate(createContractValidate), async (request, respo
 );
 
 contractRoutes.get('/', validateQuery(listContractsValidate), async (request, response) => {
-  response.json(await contractService.list(request.query as ListContractsInput));
+  response.json(await contractService.list(listContractsValidate.parse(request.query)));
 });
 
-contractRoutes.get('/summary', validateQuery(listContractsValidate), async (request, response) => {
-  response.json(await contractService.summary(request.query as ListContractsInput));
+contractRoutes.get('/summary', validateQuery(contractFiltersValidate), async (request, response) => {
+  response.json(await contractService.summary(contractFiltersValidate.parse(request.query)));
 });
 
 contractRoutes.get('/:id', validateParams(contractParamsValidate), async (request, response) => {

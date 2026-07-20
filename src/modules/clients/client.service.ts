@@ -1,7 +1,8 @@
 import type { Client } from '@prisma/client';
 import type { ClientRepository } from './client.repository';
-import type { CreateClientInput, UpdateClientInput } from './client.validate';
+import type { CreateClientInput, ListClientsInput, UpdateClientInput } from './client.validate';
 import { AppError } from '../../erros/app-error';
+import { paginate, type PaginatedResult } from '../../shared/pagination';
 
 export class ClientService {
   constructor(
@@ -21,8 +22,16 @@ export class ClientService {
     return this.clientRepository.create(input);
   }
 
-  async list(): Promise<Client[]> {
-    return this.clientRepository.findMany({ orderBy: { name: 'asc' } });
+  async list(input: ListClientsInput = { page: 1, pageSize: 20 }): Promise<PaginatedResult<Client>> {
+    const [data, total] = await Promise.all([
+      this.clientRepository.findMany({
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        skip: (input.page - 1) * input.pageSize,
+        take: input.pageSize,
+      }),
+      this.clientRepository.count(),
+    ]);
+    return paginate(data, total, input);
   }
 
   async getById(id: string): Promise<Client> {

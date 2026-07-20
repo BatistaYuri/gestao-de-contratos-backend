@@ -18,6 +18,7 @@ function createRepository(): ClientRepository {
     create: vi.fn().mockResolvedValue(client),
     findByDocument: vi.fn().mockResolvedValue(null),
     findMany: vi.fn().mockResolvedValue([]),
+    count: vi.fn().mockResolvedValue(0),
     findById: vi.fn().mockResolvedValue(client),
     update: vi.fn().mockResolvedValue(client),
     softDelete: vi.fn().mockResolvedValue(undefined),
@@ -64,12 +65,30 @@ describe('ClientService', () => {
       { ...client, id: 'fd47b772-c71d-40e3-9dd0-c074745023ac', name: 'Beta' },
     ];
     vi.mocked(repository.findMany).mockResolvedValue(orderedClients);
+    vi.mocked(repository.count).mockResolvedValue(2);
     const service = new ClientService(repository);
 
-    await expect(service.list()).resolves.toEqual(orderedClients);
-    expect(repository.findMany).toHaveBeenCalledWith({
-      orderBy: { name: 'asc' },
+    await expect(service.list()).resolves.toEqual({
+      data: orderedClients,
+      pagination: { page: 1, pageSize: 20, total: 2, totalPages: 1 },
     });
+    expect(repository.findMany).toHaveBeenCalledWith({
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      skip: 0,
+      take: 20,
+    });
+  });
+
+  it('applies pagination offsets and returns metadata', async () => {
+    const repository = createRepository();
+    vi.mocked(repository.findMany).mockResolvedValue([client]);
+    vi.mocked(repository.count).mockResolvedValue(41);
+
+    await expect(new ClientService(repository).list({ page: 3, pageSize: 20 })).resolves.toEqual({
+      data: [client],
+      pagination: { page: 3, pageSize: 20, total: 41, totalPages: 3 },
+    });
+    expect(repository.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 40, take: 20 }));
   });
 
   it('keeps a soft-deleted client document reserved', async () => {

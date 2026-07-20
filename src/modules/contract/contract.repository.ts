@@ -8,7 +8,7 @@ import type {
 } from '@prisma/client';
 
 import { prisma } from '../../infra/database/prisma';
-import type { CreateContractInput, ListContractsInput, UpdateContractInput } from './contract.validate';
+import type { ContractFiltersInput, CreateContractInput, UpdateContractInput } from './contract.validate';
 
 export type ContractWithClient = Contract & { client: Client; items: ContractItem[] };
 export type ContractStatusCount = { status: Contract['status']; _count: number };
@@ -24,6 +24,7 @@ export interface ContractRepository {
   create(data: ContractWriteData): Promise<ContractWithClient>;
   findByNumber(number: string): Promise<Contract | null>;
   findMany(options: Prisma.ContractFindManyArgs): Promise<ContractWithClient[]>;
+  count(filters?: ContractFiltersInput): Promise<number>;
   findById(id: string): Promise<ContractWithClient | null>;
   update(id: string, data: ContractUpdateData): Promise<ContractWithClient>;
   replace(id: string, data: ContractWriteData): Promise<ContractWithClient>;
@@ -40,7 +41,7 @@ export interface ContractRepository {
   ): Promise<ContractWithClient>;
   findApprovalHistory(id: string): Promise<ContractApprovalRevision[]>;
   softDelete(id: string, deletedAt: Date): Promise<void>;
-  countByStatus(filters?: ListContractsInput): Promise<ContractStatusCount[]>;
+  countByStatus(filters?: ContractFiltersInput): Promise<ContractStatusCount[]>;
   updateStatusBefore(currentStatus: Contract['status'], dueBefore: Date, newStatus: Contract['status']): Promise<number>;
 }
 
@@ -64,6 +65,10 @@ export class PrismaContractRepository implements ContractRepository {
       where: { ...options.where, deletedAt: null },
       include: includeContractRelations,
     }) as Promise<ContractWithClient[]>;
+  }
+
+  count(filters: ContractFiltersInput = {}): Promise<number> {
+    return prisma.contract.count({ where: { ...filters, deletedAt: null } });
   }
 
   findById(id: string): Promise<ContractWithClient | null> {
@@ -149,7 +154,7 @@ export class PrismaContractRepository implements ContractRepository {
     await prisma.contract.update({ where: { id }, data: { deletedAt } });
   }
 
-  async countByStatus(filters: ListContractsInput = {}): Promise<ContractStatusCount[]> {
+  async countByStatus(filters: ContractFiltersInput = {}): Promise<ContractStatusCount[]> {
     const counts = await prisma.contract.groupBy({
       by: ['status'],
       where: { ...filters, deletedAt: null },

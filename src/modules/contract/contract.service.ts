@@ -16,9 +16,10 @@ import type {
 } from './contract.repository';
 import type {
   CreateContractInput,
-  ListContractsInput,
+  ContractFiltersInput,
   UpdateContractInput,
 } from './contract.validate';
+import { paginate, type PaginatedResult, type PaginationInput } from '../../shared/pagination';
 
 export type ContractSummary = {
   active: number;
@@ -44,11 +45,18 @@ export class ContractService {
     return contract;
   }
 
-  list(filters: ListContractsInput = {}): Promise<ContractWithClient[]> {
-    return this.repository.findMany({
-      where: filters,
-      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
-    });
+  async list(input: ContractFiltersInput & Partial<PaginationInput> = {}): Promise<PaginatedResult<ContractWithClient>> {
+    const { page = 1, pageSize = 20, ...filters } = input;
+    const [data, total] = await Promise.all([
+      this.repository.findMany({
+        where: filters,
+        orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.repository.count(filters),
+    ]);
+    return paginate(data, total, { page, pageSize });
   }
 
   async getById(id: string): Promise<ContractWithClient> {
@@ -120,7 +128,7 @@ export class ContractService {
     await this.summaryCache?.invalidate();
   }
 
-  async summary(filters: ListContractsInput = {}): Promise<ContractSummary> {
+  async summary(filters: ContractFiltersInput = {}): Promise<ContractSummary> {
     const isFiltered = Object.keys(filters).length > 0;
     const cached = isFiltered ? null : await this.summaryCache?.get();
     if (cached) return cached;

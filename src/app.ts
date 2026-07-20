@@ -10,8 +10,8 @@ import { createAuthRoutes } from './modules/auth/auth.controller';
 export const app = express();
 app.use(express.json());
 
-app.get('/', (_, res) => {
-  res.send('Hello, World!');
+app.get('/api/health', (_, res) => {
+  res.status(200).json({ status: 'ok' });
 });
 
 const authService = new AuthService({

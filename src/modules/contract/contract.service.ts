@@ -11,6 +11,7 @@ import type {
   UpdateContractInput,
 } from './contract.validate';
 import { ContractSummaryCache } from '../../infra/redis/contract-summary-cache';
+import type { ClientRepository } from '../clients/client.repository';
 
 export type ContractSummary = {
   active: number;
@@ -22,6 +23,7 @@ export type ContractSummary = {
 export class ContractService {
   constructor(
     private readonly repository: ContractRepository,
+    private readonly clientRepository: Pick<ClientRepository, 'existsActive'>,
     private readonly summaryCache?: ContractSummaryCache,
     private readonly now: () => Date = () => new Date(),
   ) {}
@@ -90,7 +92,7 @@ export class ContractService {
   }
 
   private async ensureClientExists(id: string): Promise<void> {
-    if (!(await this.repository.clientExists(id))) {
+    if (!(await this.clientRepository.existsActive(id))) {
       throw new AppError('Client not found', 404);
     }
   }

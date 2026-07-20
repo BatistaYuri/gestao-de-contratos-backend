@@ -2,7 +2,13 @@ import { Router } from 'express';
 import { PrismaClientRepository } from './client.repository';
 import { createClientValidate, type CreateClientInput } from './client.validate';
 import { ClientService } from './client.service';
-import { validate } from '../../middleware/validate';
+import { validate, validateParams } from '../../middleware/validate';
+import {
+  clientParamsValidate,
+  type ClientParams,
+  updateClientValidate,
+  type UpdateClientInput,
+} from './client.validate';
 
 export const clientRoutes = Router();
 const clientRepository = new PrismaClientRepository();
@@ -17,4 +23,20 @@ clientRoutes.post('/', validate(createClientValidate), async (request, response)
 clientRoutes.get('/', async (_request, response) => {
   const clients = await clientService.list();
   response.json(clients);
+});
+
+clientRoutes.get('/:id', validateParams(clientParamsValidate), async (request, response) => {
+  response.json(await clientService.getById((request.params as ClientParams).id));
+});
+
+clientRoutes.put('/:id', validateParams(clientParamsValidate), validate(updateClientValidate), async (request, response) => {
+  response.json(await clientService.update(
+    (request.params as ClientParams).id,
+    request.body as UpdateClientInput,
+  ));
+});
+
+clientRoutes.delete('/:id', validateParams(clientParamsValidate), async (request, response) => {
+  await clientService.delete((request.params as ClientParams).id);
+  response.status(204).send();
 });

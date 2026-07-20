@@ -14,9 +14,14 @@ import {
 import { RedisContractSummaryCache } from '../../infra/redis/contract-summary-cache';
 import { ensureRedisConnection } from '../../infra/redis/redis-client';
 import { env } from '../../config/env';
+import { PrismaClientRepository } from '../clients/client.repository';
 
 const contractSummaryCache = new RedisContractSummaryCache(ensureRedisConnection, env.contractSummaryCacheTtlSeconds);
-const contractService = new ContractService(new PrismaContractRepository(), contractSummaryCache);
+const contractService = new ContractService(
+  new PrismaContractRepository(),
+  new PrismaClientRepository(),
+  contractSummaryCache,
+);
 
 export const contractRoutes = Router();
 

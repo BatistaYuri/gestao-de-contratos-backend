@@ -120,12 +120,13 @@ export class ContractService {
     await this.summaryCache?.invalidate();
   }
 
-  async summary(): Promise<ContractSummary> {
-    const cached = await this.summaryCache?.get();
+  async summary(filters: ListContractsInput = {}): Promise<ContractSummary> {
+    const isFiltered = Object.keys(filters).length > 0;
+    const cached = isFiltered ? null : await this.summaryCache?.get();
     if (cached) return cached;
 
-    const summary = this.normalizeSummary(await this.repository.countByStatus());
-    await this.summaryCache?.set(summary);
+    const summary = this.normalizeSummary(await this.repository.countByStatus(filters));
+    if (!isFiltered) await this.summaryCache?.set(summary);
     return summary;
   }
 

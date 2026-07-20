@@ -8,7 +8,7 @@ import type {
 } from '@prisma/client';
 
 import { prisma } from '../../infra/database/prisma';
-import type { CreateContractInput, UpdateContractInput } from './contract.validate';
+import type { CreateContractInput, ListContractsInput, UpdateContractInput } from './contract.validate';
 
 export type ContractWithClient = Contract & { client: Client; items: ContractItem[] };
 export type ContractStatusCount = { status: Contract['status']; _count: number };
@@ -40,7 +40,7 @@ export interface ContractRepository {
   ): Promise<ContractWithClient>;
   findApprovalHistory(id: string): Promise<ContractApprovalRevision[]>;
   softDelete(id: string, deletedAt: Date): Promise<void>;
-  countByStatus(): Promise<ContractStatusCount[]>;
+  countByStatus(filters?: ListContractsInput): Promise<ContractStatusCount[]>;
   updateStatusBefore(currentStatus: Contract['status'], dueBefore: Date, newStatus: Contract['status']): Promise<number>;
 }
 
@@ -149,10 +149,10 @@ export class PrismaContractRepository implements ContractRepository {
     await prisma.contract.update({ where: { id }, data: { deletedAt } });
   }
 
-  async countByStatus(): Promise<ContractStatusCount[]> {
+  async countByStatus(filters: ListContractsInput = {}): Promise<ContractStatusCount[]> {
     const counts = await prisma.contract.groupBy({
       by: ['status'],
-      where: { deletedAt: null },
+      where: { ...filters, deletedAt: null },
       _count: true,
     });
     return counts;

@@ -39,8 +39,8 @@ contractRoutes.get('/', validateQuery(listContractsValidate), async (request, re
   response.json(await contractService.list(request.query as ListContractsInput));
 });
 
-contractRoutes.get('/summary', async (_, response) => {
-  response.json(await contractService.summary());
+contractRoutes.get('/summary', validateQuery(listContractsValidate), async (request, response) => {
+  response.json(await contractService.summary(request.query as ListContractsInput));
 });
 
 contractRoutes.get('/:id', validateParams(contractParamsValidate), async (request, response) => {

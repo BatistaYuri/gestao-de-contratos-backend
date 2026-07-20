@@ -14,3 +14,10 @@ export function validateParams(schema: ZodType): RequestHandler {
     next();
   };
 }
+
+export function validateQuery(schema: ZodType): RequestHandler {
+  return (request, _response, next) => {
+    schema.parse(request.query);
+    next();
+  };
+}

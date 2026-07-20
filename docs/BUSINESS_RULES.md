@@ -36,6 +36,10 @@ This document describes only the behavior currently implemented in the backend.
 - Contract number is required and unique.
 - Client ID must be a UUID for an existing client.
 - Value must be a positive number.
+- Contract type is required and must be `SERVICE`, `SUPPLY`, `RENTAL`, or `OTHER`.
+- Currency is limited to `BRL`.
+- Discount and additional fees are non-negative decimal strings with at most two decimal places.
+- The resulting amount (`value - discount + additionalFees`) cannot be negative.
 - Due date must be a valid `YYYY-MM-DD` date.
 - Unknown fields are rejected by strict validation.
 
@@ -48,20 +52,42 @@ ACTIVE | EXPIRED | CLOSED
 - On creation, a due date before the current day produces `EXPIRED`.
 - A due date equal to or after the current day produces `ACTIVE`.
 - Updating a non-closed contract recalculates its status from the due date.
-- Updating a closed contract preserves `CLOSED` and its `closedAt` value.
+- Only draft or rejected contracts can be edited.
 - Closing a contract sets `CLOSED` and records `closedAt`.
 - Closing an already closed contract returns `409 Conflict`.
+- Only approved contracts can be closed.
+
+### Approval
+
+```text
+DRAFT --submit--> PENDING
+PENDING --approve--> APPROVED
+PENDING --reject--> REJECTED
+REJECTED --submit--> PENDING
+```
+
+- Approval state is independent from lifecycle status.
+- Only draft or rejected contracts can be submitted.
+- Only pending contracts can be approved or rejected.
+- Rejection requires a non-empty reason.
+- Every submission creates an immutable, sequential revision with a JSON snapshot of the submitted contract.
+- Approval or rejection updates only the pending revision with its decision date and optional rejection reason.
+- Rejected revisions remain available after adjustment and resubmission, preserving the complete decision history.
+- Revision creation and status transition occur in the same database transaction.
+- An approved contract cannot return to draft.
+- `GET /api/contracts/:id/approval-history` returns revisions in ascending version order.
 
 ### Queries
 
 - Contract lists include client data.
 - Contracts are ordered by due date ascending and creation date descending.
+- Lists can be filtered by lifecycle status, contract type, approval status, and client ID.
 - Contract detail requires a valid UUID.
 - Missing or soft-deleted contracts return `404 Not Found`.
 
 ### Update
 
-- Update replaces number, client, value, and due date.
+- Update replaces number, client, value, type, due date, currency, discount, and additional fees.
 - The new client must exist.
 - The number may remain assigned to the same contract.
 - A number assigned to another contract returns `409 Conflict`.
@@ -81,7 +107,7 @@ ACTIVE | EXPIRED | CLOSED
 - Soft-deleted contracts are not counted.
 - Redis caches the summary with a configured TTL.
 - Invalid cached data or Redis failures fall back to PostgreSQL.
-- Contract creation, update, closing, and deletion invalidate the cache.
+- Contract creation, update, approval transitions, closing, and deletion invalidate the cache.
 
 ## Automatic expiration
 

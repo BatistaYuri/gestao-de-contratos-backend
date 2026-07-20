@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { validate, validateParams } from '../../middleware/validate';
+import { validate, validateParams, validateQuery } from '../../middleware/validate';
 import { PrismaContractRepository } from './contract.repository';
 import { ContractService } from './contract.service';
 import {
@@ -10,6 +10,10 @@ import {
   type CreateContractInput,
   type UpdateContractInput,
   updateContractValidate,
+  listContractsValidate,
+  rejectContractValidate,
+  type ListContractsInput,
+  type RejectContractInput,
 } from './contract.validate';
 import { RedisContractSummaryCache } from '../../infra/redis/contract-summary-cache';
 import { ensureRedisConnection } from '../../infra/redis/redis-client';
@@ -31,8 +35,8 @@ contractRoutes.post('/', validate(createContractValidate), async (request, respo
   },
 );
 
-contractRoutes.get('/', async (_, response) => {
-  response.json(await contractService.list());
+contractRoutes.get('/', validateQuery(listContractsValidate), async (request, response) => {
+  response.json(await contractService.list(request.query as ListContractsInput));
 });
 
 contractRoutes.get('/summary', async (_, response) => {
@@ -65,4 +69,23 @@ contractRoutes.patch('/:id/close', validateParams(contractParamsValidate), async
     );
   },
 );
+
+contractRoutes.get('/:id/approval-history', validateParams(contractParamsValidate), async (request, response) => {
+  response.json(await contractService.approvalHistory((request.params as ContractParams).id));
+});
+
+contractRoutes.patch('/:id/submit', validateParams(contractParamsValidate), async (request, response) => {
+  response.json(await contractService.submit((request.params as ContractParams).id));
+});
+
+contractRoutes.patch('/:id/approve', validateParams(contractParamsValidate), async (request, response) => {
+  response.json(await contractService.approve((request.params as ContractParams).id));
+});
+
+contractRoutes.patch('/:id/reject', validateParams(contractParamsValidate), validate(rejectContractValidate), async (request, response) => {
+  response.json(await contractService.reject(
+    (request.params as ContractParams).id,
+    (request.body as RejectContractInput).reason,
+  ));
+});
 

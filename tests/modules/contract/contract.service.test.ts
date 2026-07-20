@@ -1,4 +1,4 @@
-import { ApprovalStatus, ContractStatus, ContractType, type Client, type Contract } from '@prisma/client';
+import { ApprovalStatus, ContractStatus, ContractType, Prisma, type Client, type Contract, type ContractItem } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { ContractRepository, ContractWithClient } from '../../../src/modules/contract/contract.repository';
 import { ContractService } from '../../../src/modules/contract/contract.service';
@@ -19,6 +19,7 @@ const contract: ContractWithClient = {
   number: 'CTR-001',
   clientId: client.id,
   value: 100 as unknown as Contract['value'],
+  subtotal: 100 as unknown as Contract['subtotal'],
   type: ContractType.SERVICE,
   approvalStatus: ApprovalStatus.DRAFT,
   currency: 'BRL',
@@ -31,17 +32,26 @@ const contract: ContractWithClient = {
   createdAt: new Date('2026-07-17T10:00:00.000Z'),
   updatedAt: new Date('2026-07-17T10:00:00.000Z'),
   client,
+  items: [{
+    id: '3cd41f54-36d9-4c83-8162-c58514c347fa',
+    contractId: 'fd47b772-c71d-40e3-9dd0-c074745023ac',
+    description: 'Consulting',
+    quantity: 1 as unknown as ContractItem['quantity'],
+    unitPrice: 100 as unknown as ContractItem['unitPrice'],
+    createdAt: new Date('2026-07-17T10:00:00.000Z'),
+    updatedAt: new Date('2026-07-17T10:00:00.000Z'),
+  }],
 };
 
 const input = {
   number: contract.number,
   clientId: contract.clientId,
-  value: 100,
   type: ContractType.SERVICE,
   dueDate: contract.dueDate,
   currency: 'BRL' as const,
   discount: '0',
   additionalFees: '0',
+  items: [{ description: 'Consulting', quantity: '1', unitPrice: '100.00' }],
 };
 
 function repository(): ContractRepository {
@@ -51,6 +61,7 @@ function repository(): ContractRepository {
     findMany: vi.fn().mockResolvedValue([]),
     findById: vi.fn().mockResolvedValue(contract),
     update: vi.fn().mockResolvedValue(contract),
+    replace: vi.fn().mockResolvedValue(contract),
     submitForApproval: vi.fn().mockResolvedValue(contract),
     decideApproval: vi.fn().mockResolvedValue(contract),
     findApprovalHistory: vi.fn().mockResolvedValue([]),
@@ -100,6 +111,33 @@ describe('ContractService', () => {
     await expect(new ContractService(repo, clientLookup(), undefined, now).create(input)).rejects.toMatchObject({ statusCode: 409 });
   });
 
+  it('calculates subtotal and total from multiple items, discount, and fees', async () => {
+    const repo = repository();
+    await new ContractService(repo, clientLookup(), undefined, now).create({
+      ...input,
+      discount: '100.00',
+      additionalFees: '25.00',
+      items: [
+        { description: 'Consulting', quantity: '10', unitPrice: '150.00' },
+        { description: 'Support', quantity: '2', unitPrice: '500.00' },
+      ],
+    });
+    const persisted = vi.mocked(repo.create).mock.calls[0][0];
+    expect(persisted.subtotal.toString()).toBe('2500');
+    expect(persisted.value.toString()).toBe('2425');
+  });
+
+  it('rounds the summed fractional item totals to two decimal places', async () => {
+    const repo = repository();
+    await new ContractService(repo, clientLookup(), undefined, now).create({
+      ...input,
+      items: [{ description: 'Fractional item', quantity: '1.005', unitPrice: '10.00' }],
+    });
+    const persisted = vi.mocked(repo.create).mock.calls[0][0];
+    expect(persisted.subtotal.toString()).toBe('10.05');
+    expect(persisted.value.toString()).toBe('10.05');
+  });
+
   it('requests the required listing order', async () => {
     const repo = repository();
     await new ContractService(repo, clientLookup(), undefined, now).list();
@@ -133,11 +171,27 @@ describe('ContractService', () => {
     const repo = repository();
     const changed = { ...input, number: 'CTR-002', dueDate: new Date('2026-07-16T00:00:00.000Z') };
     await new ContractService(repo, clientLookup(), undefined, now).update(contract.id, changed);
-    expect(repo.update).toHaveBeenCalledWith(contract.id, {
+    expect(repo.replace).toHaveBeenCalledWith(contract.id, {
       ...changed,
+      subtotal: expect.any(Prisma.Decimal),
+      value: expect.any(Prisma.Decimal),
       status: ContractStatus.EXPIRED,
-      closedAt: null,
     });
+  });
+
+  it('replaces all items through the atomic repository operation', async () => {
+    const repo = repository();
+    const changed = {
+      ...input,
+      items: [{ description: 'Replacement', quantity: '2.5', unitPrice: '40.00' }],
+    };
+    await new ContractService(repo, clientLookup(), undefined, now).update(contract.id, changed);
+    expect(repo.replace).toHaveBeenCalledWith(contract.id, expect.objectContaining({
+      items: changed.items,
+      subtotal: expect.any(Prisma.Decimal),
+      value: expect.any(Prisma.Decimal),
+    }));
+    expect(repo.update).not.toHaveBeenCalled();
   });
 
   it('rejects updating a contract to use a soft-deleted client', async () => {
@@ -147,7 +201,7 @@ describe('ContractService', () => {
 
     await expect(new ContractService(repo, clients, undefined, now).update(contract.id, input))
       .rejects.toMatchObject({ statusCode: 404 });
-    expect(repo.update).not.toHaveBeenCalled();
+    expect(repo.replace).not.toHaveBeenCalled();
   });
 
   it('closes an active or expired contract with a timestamp', async () => {
@@ -180,7 +234,7 @@ describe('ContractService', () => {
     await new ContractService(repo, clientLookup(), undefined, now).submit(contract.id);
     expect(repo.submitForApproval).toHaveBeenCalledWith(
       contract.id,
-      expect.objectContaining({ number: contract.number, value: '100', type: ContractType.SERVICE }),
+      expect.objectContaining({ number: contract.number, value: '100', subtotal: '100', type: ContractType.SERVICE }),
       now(),
     );
   });
@@ -234,7 +288,7 @@ describe('ContractService', () => {
     vi.mocked(repo.findById).mockResolvedValue({ ...contract, approvalStatus: ApprovalStatus.APPROVED });
     await expect(new ContractService(repo, clientLookup(), undefined, now).update(contract.id, input))
       .rejects.toMatchObject({ statusCode: 409 });
-    expect(repo.update).not.toHaveBeenCalled();
+    expect(repo.replace).not.toHaveBeenCalled();
   });
 
   it('logically deletes an existing contract', async () => {

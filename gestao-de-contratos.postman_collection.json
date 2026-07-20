@@ -1,0 +1,303 @@
+{
+  "info": {
+    "_postman_id": "c6a91e16-8fb8-4f62-a425-f61a853432e6",
+    "name": "Gestão de Contratos API",
+    "description": "Coleção completa da API de gestão de contratos.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" },
+    { "key": "token", "value": "" },
+    { "key": "clientId", "value": "" },
+    { "key": "contractId", "value": "" },
+    { "key": "clientDocument", "value": "" },
+    { "key": "contractNumber", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/health"
+      }
+    },
+    {
+      "name": "Autenticação",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const response = pm.response.json();",
+                  "  pm.collectionVariables.set('token', response.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin321\",\n  \"password\": \"admin123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clientes",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Criar cliente",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('clientDocument', Date.now().toString());"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('clientId', pm.response.json().id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Empresa Exemplo {{clientDocument}}\",\n  \"document\": \"{{clientDocument}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/clients"
+          }
+        },
+        {
+          "name": "Listar clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/clients?page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "clients"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar cliente por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/clients/{{clientId}}"
+          }
+        },
+        {
+          "name": "Atualizar cliente",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Empresa Atualizada {{clientDocument}}\",\n  \"document\": \"{{clientDocument}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/clients/{{clientId}}"
+          }
+        },
+        {
+          "name": "Excluir cliente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/clients/{{clientId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contratos",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Criar contrato",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('contractNumber', 'CONT-' + Date.now());"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('contractId', pm.response.json().id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"{{contractNumber}}\",\n  \"clientId\": \"{{clientId}}\",\n  \"type\": \"SERVICE\",\n  \"dueDate\": \"2027-12-31\",\n  \"currency\": \"BRL\",\n  \"discount\": \"0\",\n  \"additionalFees\": \"0\",\n  \"items\": [\n    {\n      \"description\": \"Serviço mensal\",\n      \"quantity\": \"1\",\n      \"unitPrice\": \"1000.00\"\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/contracts"
+          }
+        },
+        {
+          "name": "Listar contratos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/contracts?page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "contracts"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" },
+                { "key": "status", "value": "ACTIVE", "disabled": true },
+                { "key": "type", "value": "SERVICE", "disabled": true },
+                { "key": "approvalStatus", "value": "DRAFT", "disabled": true },
+                { "key": "clientId", "value": "{{clientId}}", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Resumo dos contratos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/contracts/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "contracts", "summary"],
+              "query": [
+                { "key": "status", "value": "ACTIVE", "disabled": true },
+                { "key": "type", "value": "SERVICE", "disabled": true },
+                { "key": "approvalStatus", "value": "DRAFT", "disabled": true },
+                { "key": "clientId", "value": "{{clientId}}", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar contrato por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/contracts/{{contractId}}"
+          }
+        },
+        {
+          "name": "Atualizar contrato",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"{{contractNumber}}\",\n  \"clientId\": \"{{clientId}}\",\n  \"type\": \"SERVICE\",\n  \"dueDate\": \"2027-12-31\",\n  \"currency\": \"BRL\",\n  \"discount\": \"50.00\",\n  \"additionalFees\": \"0\",\n  \"items\": [\n    {\n      \"description\": \"Serviço atualizado\",\n      \"quantity\": \"1\",\n      \"unitPrice\": \"1000.00\"\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/contracts/{{contractId}}"
+          }
+        },
+        {
+          "name": "Excluir contrato",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/contracts/{{contractId}}"
+          }
+        },
+        {
+          "name": "Encerrar contrato",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/contracts/{{contractId}}/close"
+          }
+        },
+        {
+          "name": "Histórico de aprovação",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/contracts/{{contractId}}/approval-history"
+          }
+        },
+        {
+          "name": "Enviar para aprovação",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/contracts/{{contractId}}/submit"
+          }
+        },
+        {
+          "name": "Aprovar contrato",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/contracts/{{contractId}}/approve"
+          }
+        },
+        {
+          "name": "Rejeitar contrato",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Dados do contrato precisam ser corrigidos\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/contracts/{{contractId}}/reject"
+          }
+        }
+      ]
+    }
+  ]
+}

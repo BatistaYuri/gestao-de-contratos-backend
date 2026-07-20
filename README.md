@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- Node.js 24 (o projeto foi desenvolvido com a versão `v24.15.0`)
+- Node.js 24 (versão utilizada no desenvolvimento: v24.15.0)
 - Docker
 - Git
 

@@ -11,9 +11,11 @@
     "start": "node dist/server.js",
     "start:scheduler": "node --env-file=.env dist/scheduler.js",
     "start:worker": "node --env-file=.env dist/worker.js",
+    "postinstall": "prisma generate",
     "lint": "eslint src",
     "lint:fix": "eslint . --fix",
     "test": "vitest run tests",
+    "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
   "repository": {

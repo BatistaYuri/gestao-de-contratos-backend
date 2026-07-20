@@ -9,19 +9,25 @@
 ## Como rodar
 
 ```bash
+# Baixa o projeto do GitHub
 git clone https://github.com/BatistaYuri/gestao-de-contratos-backend.git
+
+# Entra na pasta do projeto
 cd gestao-de-contratos-backend
+
+# Instala as dependências nas versões definidas no package-lock.json
 npm ci
+
+# Cria o arquivo local de variáveis de ambiente
 cp .env.example .env
+
+# Inicia o PostgreSQL, Redis e RabbitMQ em segundo plano
 docker compose up -d
-npm run prisma:migrate:deploy
+
+# Aplica as migrations e prepara a estrutura do banco de dados
+npm run prisma:migrate
 ```
 
-No Windows, troque `cp .env.example .env` por:
-
-```powershell
-copy .env.example .env
-```
 
 Abra três terminais na pasta do projeto e rode um comando em cada:
 

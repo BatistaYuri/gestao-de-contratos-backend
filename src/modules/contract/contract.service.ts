@@ -1,6 +1,14 @@
-import { ContractStatus, type Contract } from '@prisma/client';
+import {
+  ApprovalStatus,
+  ContractStatus,
+  type Contract,
+  type ContractApprovalRevision,
+  type Prisma,
+} from '@prisma/client';
 
 import { AppError } from '../../erros/app-error';
+import { ContractSummaryCache } from '../../infra/redis/contract-summary-cache';
+import type { ClientRepository } from '../clients/client.repository';
 import type {
   ContractRepository,
   ContractStatusCount,
@@ -8,10 +16,9 @@ import type {
 } from './contract.repository';
 import type {
   CreateContractInput,
+  ListContractsInput,
   UpdateContractInput,
 } from './contract.validate';
-import { ContractSummaryCache } from '../../infra/redis/contract-summary-cache';
-import type { ClientRepository } from '../clients/client.repository';
 
 export type ContractSummary = {
   active: number;
@@ -36,8 +43,9 @@ export class ContractService {
     return contract;
   }
 
-  list(): Promise<ContractWithClient[]> {
+  list(filters: ListContractsInput = {}): Promise<ContractWithClient[]> {
     return this.repository.findMany({
+      where: filters,
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
     });
   }
@@ -48,14 +56,15 @@ export class ContractService {
 
   async update(id: string, input: UpdateContractInput): Promise<ContractWithClient> {
     const contract = await this.requireContract(id);
+    this.ensureEditable(contract);
     await this.ensureClientExists(input.clientId);
     await this.ensureUniqueNumber(input.number, id);
 
-    const lifecycle = contract.status === ContractStatus.CLOSED
-      ? { status: ContractStatus.CLOSED, closedAt: contract.closedAt }
-      : { status: this.statusFor(input.dueDate), closedAt: null };
-
-    const updated = await this.repository.update(id, { ...input, ...lifecycle });
+    const updated = await this.repository.update(id, {
+      ...input,
+      status: this.statusFor(input.dueDate),
+      closedAt: null,
+    });
     await this.summaryCache?.invalidate();
     return updated;
   }
@@ -65,9 +74,43 @@ export class ContractService {
     if (contract.status === ContractStatus.CLOSED) {
       throw new AppError('Contract is already closed', 409);
     }
-    const closed = await this.repository.update(id, { status: ContractStatus.CLOSED, closedAt: this.now()});
+    if (contract.approvalStatus !== ApprovalStatus.APPROVED) {
+      throw new AppError('Only approved contracts can be closed', 409);
+    }
+    const closed = await this.repository.update(id, { status: ContractStatus.CLOSED, closedAt: this.now() });
     await this.summaryCache?.invalidate();
     return closed;
+  }
+
+  async submit(id: string): Promise<ContractWithClient> {
+    const contract = await this.requireContract(id);
+    if (contract.approvalStatus !== ApprovalStatus.DRAFT && contract.approvalStatus !== ApprovalStatus.REJECTED) {
+      throw new AppError('Only draft or rejected contracts can be submitted', 409);
+    }
+    const updated = await this.repository.submitForApproval(
+      id,
+      this.snapshot(contract),
+      this.now(),
+    );
+    await this.summaryCache?.invalidate();
+    return updated;
+  }
+
+  async approve(id: string): Promise<ContractWithClient> {
+    const contract = await this.requireContract(id);
+    this.ensurePending(contract);
+    return this.decideApproval(id, ApprovalStatus.APPROVED);
+  }
+
+  async reject(id: string, reason: string): Promise<ContractWithClient> {
+    const contract = await this.requireContract(id);
+    this.ensurePending(contract);
+    return this.decideApproval(id, ApprovalStatus.REJECTED, reason);
+  }
+
+  async approvalHistory(id: string): Promise<ContractApprovalRevision[]> {
+    await this.requireContract(id);
+    return this.repository.findApprovalHistory(id);
   }
 
   async delete(id: string): Promise<void> {
@@ -92,9 +135,7 @@ export class ContractService {
   }
 
   private async ensureClientExists(id: string): Promise<void> {
-    if (!(await this.clientRepository.existsActive(id))) {
-      throw new AppError('Client not found', 404);
-    }
+    if (!(await this.clientRepository.existsActive(id))) throw new AppError('Client not found', 404);
   }
 
   private async ensureUniqueNumber(number: string, currentId?: string): Promise<void> {
@@ -108,6 +149,41 @@ export class ContractService {
     const contract = await this.repository.findById(id);
     if (!contract) throw new AppError('Contract not found', 404);
     return contract;
+  }
+
+  private ensureEditable(contract: Contract): void {
+    if (contract.approvalStatus !== ApprovalStatus.DRAFT && contract.approvalStatus !== ApprovalStatus.REJECTED) {
+      throw new AppError('Only draft or rejected contracts can be edited', 409);
+    }
+  }
+
+  private ensurePending(contract: Contract): void {
+    if (contract.approvalStatus !== ApprovalStatus.PENDING) {
+      throw new AppError('Only pending contracts can be approved or rejected', 409);
+    }
+  }
+
+  private snapshot(contract: Contract): Prisma.InputJsonValue {
+    return {
+      number: contract.number,
+      clientId: contract.clientId,
+      value: contract.value.toString(),
+      type: contract.type,
+      dueDate: contract.dueDate.toISOString().slice(0, 10),
+      currency: contract.currency,
+      discount: contract.discount.toString(),
+      additionalFees: contract.additionalFees.toString(),
+    };
+  }
+
+  private async decideApproval(
+    id: string,
+    status: typeof ApprovalStatus.APPROVED | typeof ApprovalStatus.REJECTED,
+    reason?: string,
+  ): Promise<ContractWithClient> {
+    const updated = await this.repository.decideApproval(id, status, this.now(), reason);
+    await this.summaryCache?.invalidate();
+    return updated;
   }
 
   private normalizeSummary(counts: ContractStatusCount[]) {

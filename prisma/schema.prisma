@@ -22,11 +22,46 @@ enum ContractStatus {
   CLOSED
 }
 
+enum ContractType {
+  SERVICE
+  SUPPLY
+  RENTAL
+  OTHER
+}
+
+enum ApprovalStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ContractApprovalRevision {
+  id              String         @id @default(uuid())
+  contractId      String
+  version         Int
+  snapshot        Json
+  status          ApprovalStatus @default(PENDING)
+  submittedAt     DateTime       @default(now())
+  decidedAt       DateTime?
+  rejectionReason String?
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, version])
+  @@index([contractId, submittedAt])
+}
+
 model Contract {
   id        String         @id @default(uuid())
   number    String         @unique
   clientId  String
   value     Decimal        @db.Decimal(12, 2)
+  type      ContractType
+  approvalStatus  ApprovalStatus @default(DRAFT)
+  currency        String         @default("BRL")
+  discount        Decimal        @default(0) @db.Decimal(12, 2)
+  additionalFees  Decimal        @default(0) @db.Decimal(12, 2)
   dueDate   DateTime       @db.Date
   status    ContractStatus
   closedAt  DateTime?
@@ -34,7 +69,10 @@ model Contract {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   client    Client         @relation(fields: [clientId], references: [id])
+  approvalRevisions ContractApprovalRevision[]
 
   @@index([clientId])
   @@index([status, dueDate])
+  @@index([type])
+  @@index([approvalStatus])
 }

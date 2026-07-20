@@ -3,11 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ContractRepository, ContractWithClient } from '../../../src/modules/contract/contract.repository';
 import { ContractService } from '../../../src/modules/contract/contract.service';
 import { ContractSummaryCache } from '../../../src/infra/redis/contract-summary-cache';
+import type { ClientRepository } from '../../../src/modules/clients/client.repository';
 
 const client: Client = {
   id: '06f37985-9f78-4ced-95bb-d9328e30f93c',
   name: 'Acme',
   document: '123',
+  deletedAt: null,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 };
@@ -35,7 +37,6 @@ const input = {
 
 function repository(): ContractRepository {
   return {
-    clientExists: vi.fn().mockResolvedValue(true),
     create: vi.fn().mockResolvedValue(contract),
     findByNumber: vi.fn().mockResolvedValue(null),
     findMany: vi.fn().mockResolvedValue([]),
@@ -45,6 +46,10 @@ function repository(): ContractRepository {
     countByStatus: vi.fn().mockResolvedValue([]),
     updateStatusBefore: vi.fn().mockResolvedValue(0),
   };
+}
+
+function clientLookup(): Pick<ClientRepository, 'existsActive'> {
+  return { existsActive: vi.fn().mockResolvedValue(true) };
 }
 
 function summaryCache(): ContractSummaryCache {
@@ -64,27 +69,28 @@ describe('ContractService', () => {
     ['today', '2026-07-17', ContractStatus.ACTIVE],
   ])('creates a %s contract with the expected status', async (_name, date, status) => {
     const repo = repository();
-    const service = new ContractService(repo, undefined, now);
+    const service = new ContractService(repo, clientLookup(), undefined, now);
     await service.create({ ...input, dueDate: new Date(`${date}T00:00:00.000Z`) });
     expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ status }));
   });
 
-  it('rejects a missing client', async () => {
+  it('rejects a missing or soft-deleted client', async () => {
     const repo = repository();
-    vi.mocked(repo.clientExists).mockResolvedValue(false);
-    await expect(new ContractService(repo, undefined, now).create(input)).rejects.toMatchObject({ statusCode: 404 });
+    const clients = clientLookup();
+    vi.mocked(clients.existsActive).mockResolvedValue(false);
+    await expect(new ContractService(repo, clients, undefined, now).create(input)).rejects.toMatchObject({ statusCode: 404 });
     expect(repo.create).not.toHaveBeenCalled();
   });
 
   it('rejects a duplicate number', async () => {
     const repo = repository();
     vi.mocked(repo.findByNumber).mockResolvedValue(contract);
-    await expect(new ContractService(repo, undefined, now).create(input)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(new ContractService(repo, clientLookup(), undefined, now).create(input)).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it('requests the required listing order', async () => {
     const repo = repository();
-    await new ContractService(repo, undefined, now).list();
+    await new ContractService(repo, clientLookup(), undefined, now).list();
     expect(repo.findMany).toHaveBeenCalledWith({
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
     });
@@ -92,7 +98,7 @@ describe('ContractService', () => {
 
   it('finds a contract by ID and rejects a missing one', async () => {
     const repo = repository();
-    const service = new ContractService(repo, undefined, now);
+    const service = new ContractService(repo, clientLookup(), undefined, now);
     await expect(service.getById(contract.id)).resolves.toEqual(contract);
     vi.mocked(repo.findById).mockResolvedValue(null);
     await expect(service.getById(contract.id)).rejects.toMatchObject({ statusCode: 404 });
@@ -101,7 +107,7 @@ describe('ContractService', () => {
   it('updates a non-closed contract and recalculates its status', async () => {
     const repo = repository();
     const changed = { ...input, number: 'CTR-002', dueDate: new Date('2026-07-16T00:00:00.000Z') };
-    await new ContractService(repo, undefined, now).update(contract.id, changed);
+    await new ContractService(repo, clientLookup(), undefined, now).update(contract.id, changed);
     expect(repo.update).toHaveBeenCalledWith(contract.id, {
       ...changed,
       status: ContractStatus.EXPIRED,
@@ -109,9 +115,19 @@ describe('ContractService', () => {
     });
   });
 
+  it('rejects updating a contract to use a soft-deleted client', async () => {
+    const repo = repository();
+    const clients = clientLookup();
+    vi.mocked(clients.existsActive).mockResolvedValue(false);
+
+    await expect(new ContractService(repo, clients, undefined, now).update(contract.id, input))
+      .rejects.toMatchObject({ statusCode: 404 });
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
   it('closes an active or expired contract with a timestamp', async () => {
     const repo = repository();
-    await new ContractService(repo, undefined, now).close(contract.id);
+    await new ContractService(repo, clientLookup(), undefined, now).close(contract.id);
     expect(repo.update).toHaveBeenCalledWith(contract.id, {
       status: ContractStatus.CLOSED,
       closedAt: now(),
@@ -121,7 +137,7 @@ describe('ContractService', () => {
   it('rejects duplicate closing', async () => {
     const repo = repository();
     vi.mocked(repo.findById).mockResolvedValue({ ...contract, status: ContractStatus.CLOSED, closedAt: now() });
-    await expect(new ContractService(repo, undefined, now).close(contract.id)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(new ContractService(repo, clientLookup(), undefined, now).close(contract.id)).rejects.toMatchObject({ statusCode: 409 });
     expect(repo.update).not.toHaveBeenCalled();
   });
 
@@ -129,7 +145,7 @@ describe('ContractService', () => {
     const repo = repository();
     const closedAt = new Date('2026-07-10T12:00:00.000Z');
     vi.mocked(repo.findById).mockResolvedValue({ ...contract, status: ContractStatus.CLOSED, closedAt });
-    await new ContractService(repo, undefined, now).update(contract.id, input);
+    await new ContractService(repo, clientLookup(), undefined, now).update(contract.id, input);
     expect(repo.update).toHaveBeenCalledWith(contract.id, {
       ...input,
       status: ContractStatus.CLOSED,
@@ -139,12 +155,12 @@ describe('ContractService', () => {
 
   it('logically deletes an existing contract', async () => {
     const repo = repository();
-    await new ContractService(repo, undefined, now).delete(contract.id);
+    await new ContractService(repo, clientLookup(), undefined, now).delete(contract.id);
     expect(repo.softDelete).toHaveBeenCalledWith(contract.id, now());
   });
 
   it('returns zero for every summary count when there are no contracts', async () => {
-    const summary = await new ContractService(repository(), undefined, now).summary();
+    const summary = await new ContractService(repository(), clientLookup(), undefined, now).summary();
 
     expect(summary).toEqual({ active: 0, expired: 0, closed: 0, total: 0 });
   });
@@ -157,7 +173,7 @@ describe('ContractService', () => {
       { status: ContractStatus.CLOSED, _count: 3 },
     ]);
 
-    await expect(new ContractService(repo, undefined, now).summary()).resolves.toEqual({
+    await expect(new ContractService(repo, clientLookup(), undefined, now).summary()).resolves.toEqual({
       active: 4,
       expired: 2,
       closed: 3,
@@ -172,7 +188,7 @@ describe('ContractService', () => {
       { status: ContractStatus.CLOSED, _count: 2 },
     ]);
 
-    await expect(new ContractService(repo, undefined, now).summary()).resolves.toEqual({
+    await expect(new ContractService(repo, clientLookup(), undefined, now).summary()).resolves.toEqual({
       active: 1,
       expired: 0,
       closed: 2,
@@ -186,7 +202,7 @@ describe('ContractService', () => {
     const cached = { active: 4, expired: 2, closed: 1, total: 7 };
     vi.mocked(cache.get).mockResolvedValue(cached);
 
-    await expect(new ContractService(repo, cache, now).summary()).resolves.toEqual(cached);
+    await expect(new ContractService(repo, clientLookup(), cache, now).summary()).resolves.toEqual(cached);
     expect(repo.countByStatus).not.toHaveBeenCalled();
     expect(cache.set).not.toHaveBeenCalled();
   });
@@ -198,7 +214,7 @@ describe('ContractService', () => {
       { status: ContractStatus.ACTIVE, _count: 2 },
     ]);
 
-    const result = await new ContractService(repo, cache, now).summary();
+    const result = await new ContractService(repo, clientLookup(), cache, now).summary();
 
     expect(result).toEqual({ active: 2, expired: 0, closed: 0, total: 2 });
     expect(cache.set).toHaveBeenCalledWith(result);
@@ -209,7 +225,7 @@ describe('ContractService', () => {
     async (operation) => {
       const repo = repository();
       const cache = summaryCache();
-      const service = new ContractService(repo, cache, now);
+      const service = new ContractService(repo, clientLookup(), cache, now);
 
       if (operation === 'create') await service.create(input);
       if (operation === 'update') await service.update(contract.id, input);

@@ -7,7 +7,6 @@ import { ExpireContractsService } from '../../../src/modules/contract/expire-con
 
 function repository(updated = 0): ContractRepository {
   return {
-    clientExists: vi.fn(),
     create: vi.fn(),
     findByNumber: vi.fn(),
     findMany: vi.fn(),

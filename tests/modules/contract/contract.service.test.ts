@@ -1,4 +1,4 @@
-import { ContractStatus, type Client, type Contract } from '@prisma/client';
+import { ApprovalStatus, ContractStatus, ContractType, type Client, type Contract } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { ContractRepository, ContractWithClient } from '../../../src/modules/contract/contract.repository';
 import { ContractService } from '../../../src/modules/contract/contract.service';
@@ -19,6 +19,11 @@ const contract: ContractWithClient = {
   number: 'CTR-001',
   clientId: client.id,
   value: 100 as unknown as Contract['value'],
+  type: ContractType.SERVICE,
+  approvalStatus: ApprovalStatus.DRAFT,
+  currency: 'BRL',
+  discount: 0 as unknown as Contract['discount'],
+  additionalFees: 0 as unknown as Contract['additionalFees'],
   dueDate: new Date('2026-07-18T00:00:00.000Z'),
   status: ContractStatus.ACTIVE,
   closedAt: null,
@@ -32,7 +37,11 @@ const input = {
   number: contract.number,
   clientId: contract.clientId,
   value: 100,
+  type: ContractType.SERVICE,
   dueDate: contract.dueDate,
+  currency: 'BRL' as const,
+  discount: '0',
+  additionalFees: '0',
 };
 
 function repository(): ContractRepository {
@@ -42,6 +51,9 @@ function repository(): ContractRepository {
     findMany: vi.fn().mockResolvedValue([]),
     findById: vi.fn().mockResolvedValue(contract),
     update: vi.fn().mockResolvedValue(contract),
+    submitForApproval: vi.fn().mockResolvedValue(contract),
+    decideApproval: vi.fn().mockResolvedValue(contract),
+    findApprovalHistory: vi.fn().mockResolvedValue([]),
     softDelete: vi.fn().mockResolvedValue(undefined),
     countByStatus: vi.fn().mockResolvedValue([]),
     updateStatusBefore: vi.fn().mockResolvedValue(0),
@@ -92,8 +104,21 @@ describe('ContractService', () => {
     const repo = repository();
     await new ContractService(repo, clientLookup(), undefined, now).list();
     expect(repo.findMany).toHaveBeenCalledWith({
+      where: {},
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
     });
+  });
+
+  it('passes contract filters to the repository', async () => {
+    const repo = repository();
+    const filters = {
+      status: ContractStatus.ACTIVE,
+      type: ContractType.SERVICE,
+      approvalStatus: ApprovalStatus.PENDING,
+      clientId: client.id,
+    };
+    await new ContractService(repo, clientLookup(), undefined, now).list(filters);
+    expect(repo.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: filters }));
   });
 
   it('finds a contract by ID and rejects a missing one', async () => {
@@ -127,6 +152,7 @@ describe('ContractService', () => {
 
   it('closes an active or expired contract with a timestamp', async () => {
     const repo = repository();
+    vi.mocked(repo.findById).mockResolvedValue({ ...contract, approvalStatus: ApprovalStatus.APPROVED });
     await new ContractService(repo, clientLookup(), undefined, now).close(contract.id);
     expect(repo.update).toHaveBeenCalledWith(contract.id, {
       status: ContractStatus.CLOSED,
@@ -141,16 +167,74 @@ describe('ContractService', () => {
     expect(repo.update).not.toHaveBeenCalled();
   });
 
-  it('preserves status and closedAt when editing a closed contract', async () => {
+  it('rejects closing a contract that is not approved', async () => {
     const repo = repository();
-    const closedAt = new Date('2026-07-10T12:00:00.000Z');
-    vi.mocked(repo.findById).mockResolvedValue({ ...contract, status: ContractStatus.CLOSED, closedAt });
-    await new ContractService(repo, clientLookup(), undefined, now).update(contract.id, input);
-    expect(repo.update).toHaveBeenCalledWith(contract.id, {
-      ...input,
-      status: ContractStatus.CLOSED,
-      closedAt,
-    });
+    await expect(new ContractService(repo, clientLookup(), undefined, now).close(contract.id))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it.each([ApprovalStatus.DRAFT, ApprovalStatus.REJECTED])('submits a %s contract', async (approvalStatus) => {
+    const repo = repository();
+    vi.mocked(repo.findById).mockResolvedValue({ ...contract, approvalStatus });
+    await new ContractService(repo, clientLookup(), undefined, now).submit(contract.id);
+    expect(repo.submitForApproval).toHaveBeenCalledWith(
+      contract.id,
+      expect.objectContaining({ number: contract.number, value: '100', type: ContractType.SERVICE }),
+      now(),
+    );
+  });
+
+  it('approves a pending contract', async () => {
+    const repo = repository();
+    vi.mocked(repo.findById).mockResolvedValue({ ...contract, approvalStatus: ApprovalStatus.PENDING });
+    await new ContractService(repo, clientLookup(), undefined, now).approve(contract.id);
+    expect(repo.decideApproval).toHaveBeenCalledWith(
+      contract.id, ApprovalStatus.APPROVED, now(), undefined,
+    );
+  });
+
+  it('rejects a pending contract with its reason', async () => {
+    const repo = repository();
+    vi.mocked(repo.findById).mockResolvedValue({ ...contract, approvalStatus: ApprovalStatus.PENDING });
+    await new ContractService(repo, clientLookup(), undefined, now).reject(contract.id, 'Commercial mismatch');
+    expect(repo.decideApproval).toHaveBeenCalledWith(
+      contract.id, ApprovalStatus.REJECTED, now(), 'Commercial mismatch',
+    );
+  });
+
+  it('returns the approval history after ensuring the contract exists', async () => {
+    const repo = repository();
+    const history = [{ id: 'revision-1', version: 1 }];
+    vi.mocked(repo.findApprovalHistory).mockResolvedValue(history as never);
+    await expect(new ContractService(repo, clientLookup(), undefined, now).approvalHistory(contract.id))
+      .resolves.toEqual(history);
+    expect(repo.findById).toHaveBeenCalledWith(contract.id);
+    expect(repo.findApprovalHistory).toHaveBeenCalledWith(contract.id);
+  });
+
+  it.each([
+    ['submit', ApprovalStatus.PENDING],
+    ['approve', ApprovalStatus.DRAFT],
+    ['reject', ApprovalStatus.APPROVED],
+  ] as const)('rejects the forbidden %s transition', async (operation, approvalStatus) => {
+    const repo = repository();
+    vi.mocked(repo.findById).mockResolvedValue({ ...contract, approvalStatus });
+    const service = new ContractService(repo, clientLookup(), undefined, now);
+    const result = operation === 'reject'
+      ? service.reject(contract.id, 'Reason')
+      : service[operation](contract.id);
+    await expect(result).rejects.toMatchObject({ statusCode: 409 });
+    expect(repo.submitForApproval).not.toHaveBeenCalled();
+    expect(repo.decideApproval).not.toHaveBeenCalled();
+  });
+
+  it('rejects editing an approved contract', async () => {
+    const repo = repository();
+    vi.mocked(repo.findById).mockResolvedValue({ ...contract, approvalStatus: ApprovalStatus.APPROVED });
+    await expect(new ContractService(repo, clientLookup(), undefined, now).update(contract.id, input))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(repo.update).not.toHaveBeenCalled();
   });
 
   it('logically deletes an existing contract', async () => {
@@ -229,7 +313,10 @@ describe('ContractService', () => {
 
       if (operation === 'create') await service.create(input);
       if (operation === 'update') await service.update(contract.id, input);
-      if (operation === 'close') await service.close(contract.id);
+      if (operation === 'close') {
+        vi.mocked(repo.findById).mockResolvedValue({ ...contract, approvalStatus: ApprovalStatus.APPROVED });
+        await service.close(contract.id);
+      }
       if (operation === 'delete') await service.delete(contract.id);
 
       expect(cache.invalidate).toHaveBeenCalledOnce();

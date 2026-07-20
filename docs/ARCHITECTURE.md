@@ -64,10 +64,11 @@ Login uses credentials from environment variables and returns an HS256 JWT. Clie
 PostgreSQL is the source of truth. Prisma defines:
 
 - `Client`: UUID, name, unique document, soft-deletion timestamp, timestamps, and contracts.
-- `Contract`: UUID, unique number, client, decimal value, due date, lifecycle status, closing timestamp, soft-deletion timestamp, and timestamps.
+- `Contract`: UUID, unique number, client, derived subtotal and value, due date, lifecycle status, closing timestamp, soft-deletion timestamp, and timestamps.
+- `ContractItem`: contract, description, decimal quantity, unit price, and timestamps.
 - `ContractStatus`: `ACTIVE`, `EXPIRED`, and `CLOSED`.
 
-Contracts belong to one client. Normal contract queries, counts, and expiration processing exclude soft-deleted contracts.
+Contracts belong to one client and contain one or more items. Creation and full update calculate totals and persist the contract and its items atomically. Normal contract queries, counts, and expiration processing exclude soft-deleted contracts.
 Normal client queries exclude soft-deleted clients. Contract creation and updates can only reference non-deleted clients.
 
 The repository contains incremental migrations for client and contract creation, soft deletion, and query indexes. Client deletion checks for non-deleted related contracts in the service before persisting its timestamp.

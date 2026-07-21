@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
-import { AuthService } from '../../src/modules/auth/auth.service';
-import { AppError } from '../../src/erros/app-error';
+import { AuthService } from '../modules/auth/auth.service';
+import { AppError } from '../erros/app-error';
 
 export function createAuthenticate(
   service: Pick<AuthService, 'verify'>,

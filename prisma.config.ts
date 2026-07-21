@@ -1,13 +1,16 @@
 /// <reference types="node" />
 
-import { defineConfig, env } from "prisma/config";
+import { existsSync } from 'node:fs';
+import { defineConfig, env } from 'prisma/config';
 
-process.loadEnvFile(".env");
+if (existsSync('.env')) {
+  process.loadEnvFile('.env');
+}
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  schema: 'prisma/schema.prisma',
   migrations: {
-    path: "prisma/migrations",
+    path: 'prisma/migrations',
   },
   datasource: {
     url: env("DATABASE_URL"),

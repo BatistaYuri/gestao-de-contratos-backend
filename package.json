@@ -9,14 +9,15 @@
     "dev:worker": "tsx watch --env-file=.env src/worker.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "start:scheduler": "node --env-file=.env dist/scheduler.js",
-    "start:worker": "node --env-file=.env dist/worker.js",
+    "start:scheduler": "node dist/scheduler.js",
+    "start:worker": "node dist/worker.js",
     "postinstall": "prisma generate",
     "lint": "eslint src",
     "lint:fix": "eslint . --fix",
     "test": "vitest run tests",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "repository": {
     "type": "git",

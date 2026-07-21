@@ -47,6 +47,20 @@ A API estará em `http://localhost:3001`.
 
 Teste em `http://localhost:3001/api/health`.
 
+## Deploy na Railway
+
+A API publicada está disponível em:
+
+```text
+https://backend-api-production-e610.up.railway.app
+```
+
+Healthcheck:
+
+```text
+https://backend-api-production-e610.up.railway.app/api/health
+```
+
 ## Postman
 
 Importe o arquivo `gestao-de-contratos.postman_collection.json` no Postman.

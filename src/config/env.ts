@@ -64,6 +64,8 @@ if (!contractExpirationIntervalMs) {
   throw new Error('Missing CONTRACT_EXPIRATION_INTERVAL_MS environment variable');
 }
 
+const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
+
 export const env = {
   adminUsername,
   adminPassword,
@@ -76,4 +78,5 @@ export const env = {
   contractSummaryCacheTtlSeconds,
   rabbitMqUrl,
   contractExpirationIntervalMs,
+  corsOrigin,
 };
